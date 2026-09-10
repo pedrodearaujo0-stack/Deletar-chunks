@@ -58,6 +58,13 @@ jobs:
             echo "        aidl true" >> "$GRADLE_FILE"
           fi
           echo "    }" >> "$GRADLE_FILE"
+          echo "    defaultConfig {" >> "$GRADLE_FILE"
+          if [ "$GRADLE_FILE" = "build.gradle.kts" ]; then
+            echo "        minSdk = 23" >> "$GRADLE_FILE"
+          else
+            echo "        minSdkVersion 23" >> "$GRADLE_FILE"
+          fi
+          echo "    }" >> "$GRADLE_FILE"
           echo "}" >> "$GRADLE_FILE"
           echo "" >> "$GRADLE_FILE"
           echo "dependencies {" >> "$GRADLE_FILE"
