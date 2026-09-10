@@ -48,12 +48,36 @@ jobs:
         run: |
           cd flutter_project/android/app
           if [ -f build.gradle.kts ]; then
-            sed -i '/dependencies {/a\    implementation("dev.rikka.shizuku:api:13.1.5")\n    implementation("dev.rikka.shizuku:provider:13.1.5")' build.gradle.kts
-            sed -i '/^android {/a\    buildFeatures { aidl = true }' build.gradle.kts
+            cat >> build.gradle.kts << 'GRADLE_EOF'
+
+android {
+    buildFeatures {
+        aidl = true
+    }
+}
+
+dependencies {
+    implementation("dev.rikka.shizuku:api:13.1.5")
+    implementation("dev.rikka.shizuku:provider:13.1.5")
+}
+GRADLE_EOF
           else
-            sed -i '/dependencies {/a\    implementation "dev.rikka.shizuku:api:13.1.5"\n    implementation "dev.rikka.shizuku:provider:13.1.5"' build.gradle
-            sed -i '/^android {/a\    buildFeatures { aidl true }' build.gradle
+            cat >> build.gradle << 'GRADLE_EOF'
+
+android {
+    buildFeatures {
+        aidl true
+    }
+}
+
+dependencies {
+    implementation "dev.rikka.shizuku:api:13.1.5"
+    implementation "dev.rikka.shizuku:provider:13.1.5"
+}
+GRADLE_EOF
           fi
+          echo "--- Conteudo final do arquivo gradle do app ---"
+          cat build.gradle.kts 2>/dev/null || cat build.gradle
 
       - name: Adicionar permissao e provider no AndroidManifest
         run: |
