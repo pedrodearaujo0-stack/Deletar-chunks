@@ -14,8 +14,10 @@ class _WorldSelectorScreenState extends State<WorldSelectorScreen>
   bool _checkingPermission = true;
   bool _hasPermission = false;
   bool _loadingWorlds = false;
+  bool _loadingShizuku = false;
   List<WorldInfo> _worlds = [];
   String? _error;
+  String? _shizukuMessage;
 
   @override
   void initState() {
@@ -69,11 +71,84 @@ class _WorldSelectorScreenState extends State<WorldSelectorScreen>
     }
   }
 
+  Future<void> _loadShizukuWorlds() async {
+    setState(() {
+      _loadingShizuku = true;
+      _shizukuMessage = null;
+    });
+
+    final hasPermission = await NativeBridge.hasShizuku();
+    if (!hasPermission) {
+      await NativeBridge.requestShizukuPermission();
+      setState(() {
+        _loadingShizuku = false;
+        _shizukuMessage = 'Abra o app Shizuku, deixe ele ativo, e tenta de '
+            'novo. Se pediu uma permissão agora, aceita e toca no botão '
+            'de novo.';
+      });
+      return;
+    }
+
+    try {
+      final shizukuWorlds = await NativeBridge.listWorldsShizuku();
+      setState(() {
+        final existingNames = _worlds.map((w) => w.folderName).toSet();
+        for (final world in shizukuWorlds) {
+          if (!existingNames.contains(world.folderName)) {
+            _worlds.add(world);
+          }
+        }
+        _loadingShizuku = false;
+        _shizukuMessage = shizukuWorlds.isEmpty
+            ? 'Nenhum mundo novo encontrado na pasta protegida.'
+            : '${shizukuWorlds.length} mundo(s) encontrado(s) via Shizuku.';
+      });
+    } catch (e) {
+      setState(() {
+        _loadingShizuku = false;
+        _shizukuMessage = 'Não foi possível buscar via Shizuku: $e';
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Seus mundos')),
       body: _buildBody(),
+      bottomNavigationBar: _checkingPermission ? null : _buildShizukuBar(),
+    );
+  }
+
+  Widget _buildShizukuBar() {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_shizukuMessage != null) ...[
+              Text(
+                _shizukuMessage!,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 8),
+            ],
+            OutlinedButton.icon(
+              onPressed: _loadingShizuku ? null : _loadShizukuWorlds,
+              icon: _loadingShizuku
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.shield_outlined),
+              label: const Text('Buscar mundos protegidos (Shizuku)'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -117,7 +192,17 @@ class _WorldSelectorScreenState extends State<WorldSelectorScreen>
     }
 
     if (_worlds.isEmpty) {
-      return const Center(child: Text('Nenhum mundo encontrado.'));
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Nenhum mundo encontrado na pasta pública. Se seus mundos '
+            'estiverem na pasta protegida do Android, usa o botão '
+            '"Buscar mundos protegidos" aqui embaixo.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
     }
 
     return RefreshIndicator(
