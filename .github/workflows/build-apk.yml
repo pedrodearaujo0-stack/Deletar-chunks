@@ -47,37 +47,30 @@ jobs:
       - name: Adicionar dependencia do Shizuku e habilitar AIDL
         run: |
           cd flutter_project/android/app
-          if [ -f build.gradle.kts ]; then
-            cat >> build.gradle.kts << 'GRADLE_EOF'
-
-android {
-    buildFeatures {
-        aidl = true
-    }
-}
-
-dependencies {
-    implementation("dev.rikka.shizuku:api:13.1.5")
-    implementation("dev.rikka.shizuku:provider:13.1.5")
-}
-GRADLE_EOF
+          GRADLE_FILE=build.gradle.kts
+          if [ ! -f "$GRADLE_FILE" ]; then GRADLE_FILE=build.gradle; fi
+          echo "" >> "$GRADLE_FILE"
+          echo "android {" >> "$GRADLE_FILE"
+          echo "    buildFeatures {" >> "$GRADLE_FILE"
+          if [ "$GRADLE_FILE" = "build.gradle.kts" ]; then
+            echo "        aidl = true" >> "$GRADLE_FILE"
           else
-            cat >> build.gradle << 'GRADLE_EOF'
-
-android {
-    buildFeatures {
-        aidl true
-    }
-}
-
-dependencies {
-    implementation "dev.rikka.shizuku:api:13.1.5"
-    implementation "dev.rikka.shizuku:provider:13.1.5"
-}
-GRADLE_EOF
+            echo "        aidl true" >> "$GRADLE_FILE"
           fi
+          echo "    }" >> "$GRADLE_FILE"
+          echo "}" >> "$GRADLE_FILE"
+          echo "" >> "$GRADLE_FILE"
+          echo "dependencies {" >> "$GRADLE_FILE"
+          if [ "$GRADLE_FILE" = "build.gradle.kts" ]; then
+            echo "    implementation(\"dev.rikka.shizuku:api:13.1.5\")" >> "$GRADLE_FILE"
+            echo "    implementation(\"dev.rikka.shizuku:provider:13.1.5\")" >> "$GRADLE_FILE"
+          else
+            echo "    implementation \"dev.rikka.shizuku:api:13.1.5\"" >> "$GRADLE_FILE"
+            echo "    implementation \"dev.rikka.shizuku:provider:13.1.5\"" >> "$GRADLE_FILE"
+          fi
+          echo "}" >> "$GRADLE_FILE"
           echo "--- Conteudo final do arquivo gradle do app ---"
-          cat build.gradle.kts 2>/dev/null || cat build.gradle
+          cat "$GRADLE_FILE"
 
       - name: Adicionar permissao e provider no AndroidManifest
         run: |
