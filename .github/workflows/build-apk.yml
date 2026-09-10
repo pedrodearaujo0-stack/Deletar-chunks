@@ -33,8 +33,16 @@ jobs:
 
       - name: Copiar interface AIDL do Shizuku
         run: |
+          echo "--- Conteudo real de android/ (com caracteres especiais visiveis) ---"
+          find android | cat -A
+          echo "-----------------------------------------------------------------"
           mkdir -p flutter_project/android/app/src/main/aidl
-          cp -r android/aidl/* flutter_project/android/app/src/main/aidl/
+          if [ -d android/aidl ]; then
+            cp -r android/aidl/. flutter_project/android/app/src/main/aidl/
+          else
+            echo "ERRO: pasta android/aidl nao foi encontrada pelo shell."
+            exit 1
+          fi
 
       - name: Adicionar dependencia do Shizuku e habilitar AIDL
         run: |
@@ -63,4 +71,3 @@ jobs:
         with:
           name: chunk-tool-apk
           path: flutter_project/build/app/outputs/flutter-apk/app-debug.apk
-          
