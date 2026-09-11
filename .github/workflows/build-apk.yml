@@ -30,6 +30,8 @@ jobs:
           cp android/NativeBridgePlugin.kt "$KOTLIN_DIR/"
           cp android/MainActivity.kt "$KOTLIN_DIR/MainActivity.kt"
           cp android/ShizukuUserService.kt "$KOTLIN_DIR/"
+          cp android/NativeLevelDB.kt "$KOTLIN_DIR/"
+          cp android/ChunkScanner.kt "$KOTLIN_DIR/"
 
       - name: Copiar interface AIDL do Shizuku
         run: |
@@ -43,6 +45,19 @@ jobs:
             echo "ERRO: pasta android/aidl nao foi encontrada pelo shell."
             exit 1
           fi
+
+      - name: Copiar codigo nativo C++ e clonar a leveldb-mcpe da Mojang
+        run: |
+          CPP_DIR=flutter_project/android/app/src/main/cpp
+          mkdir -p "$CPP_DIR"
+          cp android/cpp/CMakeLists.txt "$CPP_DIR/"
+          cp android/cpp/leveldb_jni.cpp "$CPP_DIR/"
+          git clone --depth 1 https://github.com/Mojang/leveldb-mcpe "$CPP_DIR/leveldb-mcpe"
+          git -C "$CPP_DIR/leveldb-mcpe" submodule update --init --recursive || true
+          echo "--- Cabecalhos disponiveis em leveldb-mcpe/include/leveldb ---"
+          ls -la "$CPP_DIR/leveldb-mcpe/include/leveldb" || true
+          echo "--- Conteudo de options.h (pra conferir nomes reais dos compressors) ---"
+          cat "$CPP_DIR/leveldb-mcpe/include/leveldb/options.h" || true
 
       - name: Adicionar dependencia do Shizuku e habilitar AIDL
         run: |
@@ -64,6 +79,24 @@ jobs:
           else
             echo "        minSdkVersion 24" >> "$GRADLE_FILE"
           fi
+          echo "        externalNativeBuild {" >> "$GRADLE_FILE"
+          echo "            cmake {" >> "$GRADLE_FILE"
+          if [ "$GRADLE_FILE" = "build.gradle.kts" ]; then
+            echo "                abiFilters.addAll(listOf(\"arm64-v8a\", \"armeabi-v7a\"))" >> "$GRADLE_FILE"
+          else
+            echo "                abiFilters \"arm64-v8a\", \"armeabi-v7a\"" >> "$GRADLE_FILE"
+          fi
+          echo "            }" >> "$GRADLE_FILE"
+          echo "        }" >> "$GRADLE_FILE"
+          echo "    }" >> "$GRADLE_FILE"
+          echo "    externalNativeBuild {" >> "$GRADLE_FILE"
+          echo "        cmake {" >> "$GRADLE_FILE"
+          if [ "$GRADLE_FILE" = "build.gradle.kts" ]; then
+            echo "            path = file(\"src/main/cpp/CMakeLists.txt\")" >> "$GRADLE_FILE"
+          else
+            echo "            path \"src/main/cpp/CMakeLists.txt\"" >> "$GRADLE_FILE"
+          fi
+          echo "        }" >> "$GRADLE_FILE"
           echo "    }" >> "$GRADLE_FILE"
           echo "}" >> "$GRADLE_FILE"
           echo "" >> "$GRADLE_FILE"
@@ -90,7 +123,7 @@ jobs:
 
       - name: Build APK (debug)
         working-directory: flutter_project
-        run: flutter build apk --debug
+        run: flutter build apk --debug --verbose
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
