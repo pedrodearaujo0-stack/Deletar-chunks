@@ -22,6 +22,7 @@ import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
 import rikka.shizuku.Shizuku
 import java.io.File
+import java.util.zip.ZipInputStream
 
 class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
     PluginRegistry.ActivityResultListener {
@@ -32,6 +33,7 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
     private var shizukuService: IShizukuUserService? = null
     private var pendingShizukuListResult: Result? = null
     private var pendingFolderPickResult: Result? = null
+    private var pendingFilePickResult: Result? = null
 
     private val permissionListener = Shizuku.OnRequestPermissionResultListener { _, _ -> }
 
@@ -97,29 +99,44 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
-        if (requestCode != FOLDER_PICK_REQUEST_CODE) return false
-
-        val context = activityBinding?.activity?.applicationContext
-        if (resultCode == Activity.RESULT_OK && data?.data != null && context != null) {
-            val treeUri = data.data!!
-            try {
-                context.contentResolver.takePersistableUriPermission(
-                    treeUri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                )
-            } catch (e: Exception) {
-                // segue mesmo se nao conseguir persistir, vale pra sessao atual
+        if (requestCode == FOLDER_PICK_REQUEST_CODE) {
+            val context = activityBinding?.activity?.applicationContext
+            if (resultCode == Activity.RESULT_OK && data?.data != null && context != null) {
+                val treeUri = data.data!!
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        treeUri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    )
+                } catch (e: Exception) {
+                    // segue mesmo se nao conseguir persistir, vale pra sessao atual
+                }
+                context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    .edit()
+                    .putString(PREF_KEY_TREE_URI, treeUri.toString())
+                    .apply()
+                pendingFolderPickResult?.success(true)
+            } else {
+                pendingFolderPickResult?.success(false)
             }
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .edit()
-                .putString(PREF_KEY_TREE_URI, treeUri.toString())
-                .apply()
-            pendingFolderPickResult?.success(true)
-        } else {
-            pendingFolderPickResult?.success(false)
+            pendingFolderPickResult = null
+            return true
         }
-        pendingFolderPickResult = null
-        return true
+
+        if (requestCode == FILE_PICK_REQUEST_CODE) {
+            val context = activityBinding?.activity?.applicationContext
+            if (resultCode == Activity.RESULT_OK && data?.data != null && context != null) {
+                val fileUri = data.data!!
+                val worldInfo = extractMcworldToStaging(context, fileUri)
+                pendingFilePickResult?.success(worldInfo)
+            } else {
+                pendingFilePickResult?.success(null)
+            }
+            pendingFilePickResult = null
+            return true
+        }
+
+        return false
     }
 
     override fun onMethodCall(call: MethodCall, result: Result) {
@@ -145,6 +162,10 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
             }
             "hasPickedFolder" -> result.success(getSavedTreeUri() != null)
             "listWorldsInPickedFolder" -> result.success(listWorldsInPickedFolder())
+            "pickWorldFile" -> {
+                pendingFilePickResult = result
+                pickWorldFile()
+            }
             else -> result.notImplemented()
         }
     }
@@ -262,10 +283,86 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
         return worlds
     }
 
+    // ---------- Arquivo .mcworld escolhido diretamente ----------
+
+    private fun pickWorldFile() {
+        val activity = activityBinding?.activity
+        if (activity == null) {
+            pendingFilePickResult?.success(null)
+            pendingFilePickResult = null
+            return
+        }
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+        intent.addCategory(Intent.CATEGORY_OPENABLE)
+        intent.type = "*/*"
+        activity.startActivityForResult(intent, FILE_PICK_REQUEST_CODE)
+    }
+
+    private fun extractMcworldToStaging(context: Context, fileUri: Uri): Map<String, String>? {
+        return try {
+            val displayName = queryDisplayName(context, fileUri) ?: "mundo_importado"
+            val safeName = displayName.substringBeforeLast(".").ifBlank { "mundo_importado" }
+
+            val stagingRoot = File(context.getExternalFilesDir(null), "imported_worlds/$safeName")
+            stagingRoot.deleteRecursively()
+            stagingRoot.mkdirs()
+
+            context.contentResolver.openInputStream(fileUri)?.use { input ->
+                ZipInputStream(input).use { zip ->
+                    var entry = zip.nextEntry
+                    while (entry != null) {
+                        val outFile = File(stagingRoot, entry.name)
+                        if (entry.isDirectory) {
+                            outFile.mkdirs()
+                        } else {
+                            outFile.parentFile?.mkdirs()
+                            outFile.outputStream().use { output -> zip.copyTo(output) }
+                        }
+                        zip.closeEntry()
+                        entry = zip.nextEntry
+                    }
+                }
+            } ?: return null
+
+            if (!File(stagingRoot, "level.dat").exists()) {
+                // as vezes o .mcworld tem uma subpasta interna em vez do level.dat na raiz
+                val inner = stagingRoot.listFiles()?.firstOrNull {
+                    it.isDirectory && File(it, "level.dat").exists()
+                }
+                if (inner != null) {
+                    return mapOf(
+                        "folderName" to safeName,
+                        "path" to inner.absolutePath
+                    )
+                }
+                return null
+            }
+
+            mapOf(
+                "folderName" to safeName,
+                "path" to stagingRoot.absolutePath
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun queryDisplayName(context: Context, uri: Uri): String? {
+        return try {
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (cursor.moveToFirst() && nameIndex >= 0) cursor.getString(nameIndex) else null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     companion object {
         const val CHANNEL_NAME = "chunk_tool/native"
         const val SHIZUKU_REQUEST_CODE = 1001
         const val FOLDER_PICK_REQUEST_CODE = 2001
+        const val FILE_PICK_REQUEST_CODE = 3001
         const val BuildConfigPackage = "com.example.chunktool"
         const val PREFS_NAME = "chunk_tool_prefs"
         const val PREF_KEY_TREE_URI = "picked_tree_uri"
