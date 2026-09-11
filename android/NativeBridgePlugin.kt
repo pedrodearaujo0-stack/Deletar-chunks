@@ -1,6 +1,8 @@
 package com.example.chunktool
 
+import android.app.Activity
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
@@ -9,6 +11,7 @@ import android.os.Build
 import android.os.Environment
 import android.os.IBinder
 import android.provider.Settings
+import androidx.documentfile.provider.DocumentFile
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -16,21 +19,21 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
+import io.flutter.plugin.common.PluginRegistry
 import rikka.shizuku.Shizuku
 import java.io.File
 
-class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
+class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
+    PluginRegistry.ActivityResultListener {
 
     private lateinit var channel: MethodChannel
     private var activityBinding: ActivityPluginBinding? = null
 
     private var shizukuService: IShizukuUserService? = null
     private var pendingShizukuListResult: Result? = null
+    private var pendingFolderPickResult: Result? = null
 
-    private val permissionListener = Shizuku.OnRequestPermissionResultListener { _, _ ->
-        // O Flutter reconsulta hasShizuku() quando o app volta ao primeiro plano,
-        // entao nao precisamos fazer nada aqui alem de deixar o listener registrado.
-    }
+    private val permissionListener = Shizuku.OnRequestPermissionResultListener { _, _ -> }
 
     private val userServiceArgs = Shizuku.UserServiceArgs(
         ComponentName(BuildConfigPackage, ShizukuUserService::class.java.name)
@@ -75,18 +78,48 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
         activityBinding = binding
+        binding.addActivityResultListener(this)
     }
 
     override fun onDetachedFromActivityForConfigChanges() {
+        activityBinding?.removeActivityResultListener(this)
         activityBinding = null
     }
 
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
         activityBinding = binding
+        binding.addActivityResultListener(this)
     }
 
     override fun onDetachedFromActivity() {
+        activityBinding?.removeActivityResultListener(this)
         activityBinding = null
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
+        if (requestCode != FOLDER_PICK_REQUEST_CODE) return false
+
+        val context = activityBinding?.activity?.applicationContext
+        if (resultCode == Activity.RESULT_OK && data?.data != null && context != null) {
+            val treeUri = data.data!!
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    treeUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            } catch (e: Exception) {
+                // segue mesmo se nao conseguir persistir, vale pra sessao atual
+            }
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(PREF_KEY_TREE_URI, treeUri.toString())
+                .apply()
+            pendingFolderPickResult?.success(true)
+        } else {
+            pendingFolderPickResult?.success(false)
+        }
+        pendingFolderPickResult = null
+        return true
     }
 
     override fun onMethodCall(call: MethodCall, result: Result) {
@@ -106,6 +139,12 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 pendingShizukuListResult = result
                 bindShizukuService()
             }
+            "pickFolder" -> {
+                pendingFolderPickResult = result
+                pickFolder()
+            }
+            "hasPickedFolder" -> result.success(getSavedTreeUri() != null)
+            "listWorldsInPickedFolder" -> result.success(listWorldsInPickedFolder())
             else -> result.notImplemented()
         }
     }
@@ -181,9 +220,54 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         }
     }
 
+    // ---------- Pasta escolhida manualmente pelo usuario ----------
+
+    private fun pickFolder() {
+        val activity = activityBinding?.activity
+        if (activity == null) {
+            pendingFolderPickResult?.success(false)
+            pendingFolderPickResult = null
+            return
+        }
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+        intent.addFlags(
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        )
+        activity.startActivityForResult(intent, FOLDER_PICK_REQUEST_CODE)
+    }
+
+    private fun getSavedTreeUri(): Uri? {
+        val context = activityBinding?.activity?.applicationContext ?: return null
+        val saved = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(PREF_KEY_TREE_URI, null) ?: return null
+        return Uri.parse(saved)
+    }
+
+    private fun listWorldsInPickedFolder(): List<Map<String, String>> {
+        val context = activityBinding?.activity?.applicationContext ?: return emptyList()
+        val treeUri = getSavedTreeUri() ?: return emptyList()
+        val root = DocumentFile.fromTreeUri(context, treeUri) ?: return emptyList()
+
+        val worlds = mutableListOf<Map<String, String>>()
+        root.listFiles().forEach { folder ->
+            if (folder.isDirectory && folder.findFile("level.dat") != null) {
+                worlds.add(
+                    mapOf(
+                        "folderName" to (folder.name ?: "?"),
+                        "path" to "Pasta escolhida"
+                    )
+                )
+            }
+        }
+        return worlds
+    }
+
     companion object {
         const val CHANNEL_NAME = "chunk_tool/native"
         const val SHIZUKU_REQUEST_CODE = 1001
+        const val FOLDER_PICK_REQUEST_CODE = 2001
         const val BuildConfigPackage = "com.example.chunktool"
+        const val PREFS_NAME = "chunk_tool_prefs"
+        const val PREF_KEY_TREE_URI = "picked_tree_uri"
     }
 }
