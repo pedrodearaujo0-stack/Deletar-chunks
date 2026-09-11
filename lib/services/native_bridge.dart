@@ -44,4 +44,25 @@ class NativeBridge {
             ))
         .toList();
   }
+
+  /// Abre o seletor nativo de pasta do Android. Retorna true se o usuário
+  /// escolheu uma pasta com sucesso.
+  static Future<bool> pickFolder() async {
+    final result = await _channel.invokeMethod<bool>('pickFolder');
+    return result ?? false;
+  }
+
+  static Future<bool> hasPickedFolder() async {
+    final result = await _channel.invokeMethod<bool>('hasPickedFolder');
+    return result ?? false;
+  }
+
+  static Future<List<WorldInfo>> listWorldsInPickedFolder() async {
+    final result =
+        await _channel.invokeMethod<List<dynamic>>('listWorldsInPickedFolder');
+    if (result == null) return [];
+    return result
+        .map((item) => WorldInfo.fromMap(Map<dynamic, dynamic>.from(item)))
+        .toList();
+  }
 }
