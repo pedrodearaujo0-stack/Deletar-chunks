@@ -71,9 +71,11 @@ jobs:
           if [ "$GRADLE_FILE" = "build.gradle.kts" ]; then
             echo "    implementation(\"dev.rikka.shizuku:api:13.1.5\")" >> "$GRADLE_FILE"
             echo "    implementation(\"dev.rikka.shizuku:provider:13.1.5\")" >> "$GRADLE_FILE"
+            echo "    implementation(\"androidx.documentfile:documentfile:1.0.1\")" >> "$GRADLE_FILE"
           else
             echo "    implementation \"dev.rikka.shizuku:api:13.1.5\"" >> "$GRADLE_FILE"
             echo "    implementation \"dev.rikka.shizuku:provider:13.1.5\"" >> "$GRADLE_FILE"
+            echo "    implementation \"androidx.documentfile:documentfile:1.0.1\"" >> "$GRADLE_FILE"
           fi
           echo "}" >> "$GRADLE_FILE"
           echo "--- Conteudo final do arquivo gradle do app ---"
