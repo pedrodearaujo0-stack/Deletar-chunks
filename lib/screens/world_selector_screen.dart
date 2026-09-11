@@ -150,6 +150,35 @@ class _WorldSelectorScreenState extends State<WorldSelectorScreen>
     }
   }
 
+  Future<void> _pickMcworldFile() async {
+    setState(() {
+      _loadingFolder = true;
+      _folderMessage = null;
+    });
+
+    try {
+      final world = await NativeBridge.pickWorldFile();
+      setState(() {
+        _loadingFolder = false;
+        if (world == null) {
+          _folderMessage = 'Não foi possível ler esse arquivo como mundo '
+              '(.mcworld).';
+          return;
+        }
+        final existingNames = _worlds.map((w) => w.folderName).toSet();
+        if (!existingNames.contains(world.folderName)) {
+          _worlds.add(world);
+        }
+        _folderMessage = 'Mundo "${world.folderName}" importado.';
+      });
+    } catch (e) {
+      setState(() {
+        _loadingFolder = false;
+        _folderMessage = 'Não foi possível importar o arquivo: $e';
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -204,6 +233,12 @@ class _WorldSelectorScreenState extends State<WorldSelectorScreen>
                     )
                   : const Icon(Icons.folder_open_outlined),
               label: const Text('Escolher pasta manualmente'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _loadingFolder ? null : _pickMcworldFile,
+              icon: const Icon(Icons.archive_outlined),
+              label: const Text('Escolher arquivo .mcworld'),
             ),
           ],
         ),
