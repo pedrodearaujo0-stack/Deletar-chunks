@@ -15,9 +15,11 @@ class _WorldSelectorScreenState extends State<WorldSelectorScreen>
   bool _hasPermission = false;
   bool _loadingWorlds = false;
   bool _loadingShizuku = false;
+  bool _loadingFolder = false;
   List<WorldInfo> _worlds = [];
   String? _error;
   String? _shizukuMessage;
+  String? _folderMessage;
 
   @override
   void initState() {
@@ -111,6 +113,43 @@ class _WorldSelectorScreenState extends State<WorldSelectorScreen>
     }
   }
 
+  Future<void> _pickFolderAndLoad() async {
+    setState(() {
+      _loadingFolder = true;
+      _folderMessage = null;
+    });
+
+    final picked = await NativeBridge.pickFolder();
+    if (!picked) {
+      setState(() {
+        _loadingFolder = false;
+        _folderMessage = 'Nenhuma pasta selecionada.';
+      });
+      return;
+    }
+
+    try {
+      final folderWorlds = await NativeBridge.listWorldsInPickedFolder();
+      setState(() {
+        final existingNames = _worlds.map((w) => w.folderName).toSet();
+        for (final world in folderWorlds) {
+          if (!existingNames.contains(world.folderName)) {
+            _worlds.add(world);
+          }
+        }
+        _loadingFolder = false;
+        _folderMessage = folderWorlds.isEmpty
+            ? 'Nenhum mundo encontrado nessa pasta.'
+            : '${folderWorlds.length} mundo(s) encontrado(s) na pasta escolhida.';
+      });
+    } catch (e) {
+      setState(() {
+        _loadingFolder = false;
+        _folderMessage = 'Não foi possível ler a pasta: $e';
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -145,6 +184,26 @@ class _WorldSelectorScreenState extends State<WorldSelectorScreen>
                     )
                   : const Icon(Icons.shield_outlined),
               label: const Text('Buscar mundos protegidos (Shizuku)'),
+            ),
+            const SizedBox(height: 8),
+            if (_folderMessage != null) ...[
+              Text(
+                _folderMessage!,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 8),
+            ],
+            OutlinedButton.icon(
+              onPressed: _loadingFolder ? null : _pickFolderAndLoad,
+              icon: _loadingFolder
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.folder_open_outlined),
+              label: const Text('Escolher pasta manualmente'),
             ),
           ],
         ),
