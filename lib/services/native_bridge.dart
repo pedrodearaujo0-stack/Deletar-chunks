@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import '../models/world_info.dart';
+import '../models/chunk_scan_result.dart';
 
 class NativeBridge {
   static const _channel = MethodChannel('chunk_tool/native');
@@ -73,5 +74,18 @@ class NativeBridge {
         await _channel.invokeMethod<Map<dynamic, dynamic>>('pickWorldFile');
     if (result == null) return null;
     return WorldInfo.fromMap(result);
+  }
+
+  /// Abre o mundo (pasta ja extraida/copiada) e lista os chunks existentes,
+  /// lendo o LevelDB de verdade via codigo nativo C++.
+  static Future<ChunkScanResult> scanChunks(String worldPath) async {
+    final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+      'scanChunks',
+      {'worldPath': worldPath},
+    );
+    if (result == null) {
+      return ChunkScanResult(success: false, error: 'Sem resposta', chunks: []);
+    }
+    return ChunkScanResult.fromMap(result);
   }
 }
