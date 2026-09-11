@@ -65,4 +65,13 @@ class NativeBridge {
         .map((item) => WorldInfo.fromMap(Map<dynamic, dynamic>.from(item)))
         .toList();
   }
+
+  /// Abre o seletor de arquivo único, esperando um .mcworld. Extrai
+  /// automaticamente e retorna o mundo pronto, ou null se cancelado/falhou.
+  static Future<WorldInfo?> pickWorldFile() async {
+    final result =
+        await _channel.invokeMethod<Map<dynamic, dynamic>>('pickWorldFile');
+    if (result == null) return null;
+    return WorldInfo.fromMap(result);
+  }
 }
