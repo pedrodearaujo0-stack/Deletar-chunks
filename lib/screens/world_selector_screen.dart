@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/native_bridge.dart';
 import '../models/world_info.dart';
+import 'chunk_list_screen.dart';
 
 class WorldSelectorScreen extends StatefulWidget {
   const WorldSelectorScreen({super.key});
@@ -314,111 +315,26 @@ class _WorldSelectorScreenState extends State<WorldSelectorScreen>
               overflow: TextOverflow.ellipsis,
             ),
             onTap: () {
-              // Próximo passo: navegar pro mapa do mundo selecionado.
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 8),
-            ],
-            OutlinedButton.icon(
-              onPressed: _loadingFolder ? null : _pickFolderAndLoad,
-              icon: _loadingFolder
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.folder_open_outlined),
-              label: const Text('Escolher pasta manualmente'),
-            ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: _loadingFolder ? null : _pickMcworldFile,
-              icon: const Icon(Icons.archive_outlined),
-              label: const Text('Escolher arquivo .mcworld'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBody() {
-    if (_checkingPermission) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (!_hasPermission) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Pra encontrar seus mundos, o app precisa de acesso a '
-                'todos os arquivos. Isso é uma exigência do Android pra '
-                'ler a pasta do Minecraft.',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () async {
-                  await NativeBridge.requestStoragePermission();
-                },
-                child: const Text('Conceder acesso'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_loadingWorlds) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_error != null) {
-      return Center(child: Text(_error!));
-    }
-
-    if (_worlds.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'Nenhum mundo encontrado na pasta pública. Se seus mundos '
-            'estiverem na pasta protegida do Android, usa o botão '
-            '"Buscar mundos protegidos" aqui embaixo.',
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: _loadWorlds,
-      child: ListView.builder(
-        itemCount: _worlds.length,
-        itemBuilder: (context, index) {
-          final world = _worlds[index];
-          return ListTile(
-            leading: const Icon(Icons.public),
-            title: Text(world.folderName),
-            subtitle: Text(
-              world.path,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            onTap: () {
-              // Próximo passo: navegar pro mapa do mundo selecionado.
+              if (world.path.startsWith('/')) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => ChunkListScreen(
+                      worldName: world.folderName,
+                      worldPath: world.path,
+                    ),
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'Esse mundo ainda não pode ser aberto direto — '
+                      'só funciona por enquanto com mundos da pasta '
+                      'pública ou importados por .mcworld.',
+                    ),
+                  ),
+                );
+              }
             },
           );
         },
