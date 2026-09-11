@@ -46,18 +46,25 @@ jobs:
             exit 1
           fi
 
-      - name: Copiar codigo nativo C++ e clonar a leveldb-mcpe da Mojang
+      - name: Copiar codigo nativo C++ e clonar a leveldb (porte CMake)
         run: |
           CPP_DIR=flutter_project/android/app/src/main/cpp
           mkdir -p "$CPP_DIR"
           cp android/cpp/CMakeLists.txt "$CPP_DIR/"
           cp android/cpp/leveldb_jni.cpp "$CPP_DIR/"
-          git clone --depth 1 https://github.com/Mojang/leveldb-mcpe "$CPP_DIR/leveldb-mcpe"
+          git clone --depth 1 https://github.com/teampathfinders/leveldb "$CPP_DIR/leveldb-mcpe"
           git -C "$CPP_DIR/leveldb-mcpe" submodule update --init --recursive || true
           echo "--- Cabecalhos disponiveis em leveldb-mcpe/include/leveldb ---"
           ls -la "$CPP_DIR/leveldb-mcpe/include/leveldb" || true
           echo "--- Conteudo de options.h (pra conferir nomes reais dos compressors) ---"
           cat "$CPP_DIR/leveldb-mcpe/include/leveldb/options.h" || true
+          echo "--- Procurando arquivos relacionados a compressor ---"
+          find "$CPP_DIR/leveldb-mcpe" -iname "*compress*"
+          echo "--- Conteudo de cada um encontrado ---"
+          for f in $(find "$CPP_DIR/leveldb-mcpe" -iname "*compress*" -name "*.h"); do
+            echo "=== $f ==="
+            cat "$f"
+          done
 
       - name: Adicionar dependencia do Shizuku e habilitar AIDL
         run: |
