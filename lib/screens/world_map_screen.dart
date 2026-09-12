@@ -331,6 +331,13 @@ class _MapPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // TESTE DE DIAGNOSTICO: retangulo vermelho cobrindo tudo, desenhado
+    // antes dos chunks. Se isso nao aparecer, o problema nao e nos dados.
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Paint()..color = const Color(0xFFFF0000),
+    );
+
     final fillPaint = Paint();
     final strokePaint = Paint()
       ..style = PaintingStyle.stroke
