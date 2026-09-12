@@ -130,4 +130,30 @@ class NativeBridge {
     final blocks = (result['blocks'] as List<dynamic>?) ?? [];
     return blocks.map((b) => b as String).toList();
   }
+
+  /// Le o bloco do topo (1 coluna central) de varios chunks de uma vez.
+  /// Usado pra colorir o mapa sem travar em mundos grandes.
+  static Future<Map<String, String>> getChunkColors(
+    String worldPath,
+    List<ChunkCoord> chunks,
+  ) async {
+    final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+      'getChunkColors',
+      {
+        'worldPath': worldPath,
+        'chunks': chunks
+            .map((c) => {'x': c.x, 'z': c.z, 'dimension': c.dimension})
+            .toList(),
+      },
+    );
+    if (result == null) return {};
+    final rawResults = (result['results'] as List<dynamic>?) ?? [];
+    final map = <String, String>{};
+    for (final item in rawResults) {
+      final m = Map<dynamic, dynamic>.from(item);
+      final key = '${m['x']}_${m['z']}_${m['dimension']}';
+      map[key] = m['block'] as String? ?? '';
+    }
+    return map;
+  }
 }
