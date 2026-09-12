@@ -97,4 +97,16 @@ object ChunkScanner {
         }
         return true
     }
+
+    /// Le os blocos do topo (256 colunas) de um chunk especifico. Serve pra
+    /// testar se a decodificacao do formato binario ta certa, antes de montar
+    /// o mapa visual.
+    fun getTopBlocks(worldPath: String, chunk: ChunkCoord): List<String> {
+        val db = NativeLevelDB()
+        val handle = db.nativeOpen("$worldPath/db")
+        if (handle == 0L) return emptyList()
+        val raw = db.nativeGetTopBlocks(handle, chunk.x, chunk.z, chunk.dimension)
+        db.nativeClose(handle)
+        return raw.split(";")
+    }
 }
