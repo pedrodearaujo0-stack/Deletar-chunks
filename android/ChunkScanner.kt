@@ -109,4 +109,20 @@ object ChunkScanner {
         db.nativeClose(handle)
         return raw.split(";")
     }
+
+    /// Le o bloco do topo (so a coluna central) de varios chunks de uma vez,
+    /// abrindo o banco uma unica vez. Usado pra colorir o mapa.
+    fun getChunkColors(worldPath: String, chunks: List<ChunkCoord>): Map<ChunkCoord, String> {
+        val db = NativeLevelDB()
+        val handle = db.nativeOpen("$worldPath/db")
+        if (handle == 0L) return emptyMap()
+
+        val result = mutableMapOf<ChunkCoord, String>()
+        for (chunk in chunks) {
+            val block = db.nativeGetChunkTopBlock(handle, chunk.x, chunk.z, chunk.dimension)
+            result[chunk] = block
+        }
+        db.nativeClose(handle)
+        return result
+    }
 }
