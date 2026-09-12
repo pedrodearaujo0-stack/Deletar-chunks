@@ -18,4 +18,5 @@ class NativeLevelDB {
     external fun nativeIteratorSeek(iterHandle: Long, target: ByteArray)
     external fun nativeDelete(dbHandle: Long, key: ByteArray): Boolean
     external fun nativeIteratorClose(iterHandle: Long)
+    external fun nativeGetTopBlocks(dbHandle: Long, x: Int, z: Int, dimension: Int): String
 }
