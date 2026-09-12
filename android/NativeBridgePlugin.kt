@@ -190,6 +190,17 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                     deleteChunksAsync(worldPath, chunks, result)
                 }
             }
+            "getTopBlocks" -> {
+                val worldPath = call.argument<String>("worldPath")
+                val x = call.argument<Int>("x")
+                val z = call.argument<Int>("z")
+                val dimension = call.argument<Int>("dimension")
+                if (worldPath == null || x == null || z == null || dimension == null) {
+                    result.success(mapOf("success" to false, "error" to "argumentos ausentes"))
+                } else {
+                    getTopBlocksAsync(worldPath, ChunkCoord(x, z, dimension), result)
+                }
+            }
             else -> result.notImplemented()
         }
     }
@@ -422,6 +433,20 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                         "deletedCount" to deleteResult.deletedCount
                     )
                 )
+            }
+        }.start()
+    }
+
+    private fun getTopBlocksAsync(worldPath: String, chunk: ChunkCoord, result: Result) {
+        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        Thread {
+            val blocks = try {
+                ChunkScanner.getTopBlocks(worldPath, chunk)
+            } catch (e: Throwable) {
+                emptyList<String>()
+            }
+            mainHandler.post {
+                result.success(mapOf("success" to true, "blocks" to blocks))
             }
         }.start()
     }
