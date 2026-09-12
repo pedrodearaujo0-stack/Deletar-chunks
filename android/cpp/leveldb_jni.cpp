@@ -80,6 +80,27 @@ Java_com_example_chunktool_NativeLevelDB_nativeIteratorKey(JNIEnv *env, jobject,
 }
 
 JNIEXPORT void JNICALL
+Java_com_example_chunktool_NativeLevelDB_nativeIteratorSeek(JNIEnv *env, jobject, jlong iterHandle, jbyteArray targetJ) {
+    auto *it = reinterpret_cast<leveldb::Iterator *>(iterHandle);
+    jsize len = env->GetArrayLength(targetJ);
+    jbyte *bytes = env->GetByteArrayElements(targetJ, nullptr);
+    leveldb::Slice target(reinterpret_cast<const char *>(bytes), static_cast<size_t>(len));
+    it->Seek(target);
+    env->ReleaseByteArrayElements(targetJ, bytes, JNI_ABORT);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_example_chunktool_NativeLevelDB_nativeDelete(JNIEnv *env, jobject, jlong dbHandle, jbyteArray keyJ) {
+    auto *db = reinterpret_cast<leveldb::DB *>(dbHandle);
+    jsize len = env->GetArrayLength(keyJ);
+    jbyte *bytes = env->GetByteArrayElements(keyJ, nullptr);
+    leveldb::Slice key(reinterpret_cast<const char *>(bytes), static_cast<size_t>(len));
+    leveldb::Status status = db->Delete(leveldb::WriteOptions(), key);
+    env->ReleaseByteArrayElements(keyJ, bytes, JNI_ABORT);
+    return status.ok() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
 Java_com_example_chunktool_NativeLevelDB_nativeIteratorClose(JNIEnv *, jobject, jlong iterHandle) {
     auto *it = reinterpret_cast<leveldb::Iterator *>(iterHandle);
     delete it;
