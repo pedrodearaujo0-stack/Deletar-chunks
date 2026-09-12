@@ -56,6 +56,12 @@ jobs:
           git -C "$CPP_DIR/leveldb-mcpe" submodule update --init --recursive || true
           echo "--- Removendo port_posix_sse.cc (so serve pra x86, quebra build ARM) ---"
           sed -i '/port_posix_sse\.cc/d' "$CPP_DIR/leveldb-mcpe/CMakeLists.txt"
+          echo "--- Trocando funcoes _unlocked (nao existem no Android/Bionic) ---"
+          sed -i \
+            -e 's/fread_unlocked/fread/g' \
+            -e 's/fwrite_unlocked/fwrite/g' \
+            -e 's/fflush_unlocked/fflush/g' \
+            "$CPP_DIR/leveldb-mcpe/src/util/env_posix.cc"
           echo "--- Cabecalhos disponiveis em leveldb-mcpe/include/leveldb ---"
           ls -la "$CPP_DIR/leveldb-mcpe/include/leveldb" || true
           echo "--- Conteudo de options.h (pra conferir nomes reais dos compressors) ---"
