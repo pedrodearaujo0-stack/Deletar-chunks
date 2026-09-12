@@ -52,6 +52,8 @@ jobs:
           mkdir -p "$CPP_DIR"
           cp android/cpp/CMakeLists.txt "$CPP_DIR/"
           cp android/cpp/leveldb_jni.cpp "$CPP_DIR/"
+          cp android/cpp/nbt_reader.h "$CPP_DIR/"
+          cp android/cpp/subchunk_decoder.h "$CPP_DIR/"
           git clone --depth 1 https://github.com/teampathfinders/leveldb "$CPP_DIR/leveldb-mcpe"
           git -C "$CPP_DIR/leveldb-mcpe" submodule update --init --recursive || true
           echo "--- Substituindo port_posix_sse.cc por versao stub (so serve pra x86) ---"
@@ -156,3 +158,4 @@ jobs:
         with:
           name: chunk-tool-apk
           path: flutter_project/build/app/outputs/flutter-apk/app-debug.apk
+          
