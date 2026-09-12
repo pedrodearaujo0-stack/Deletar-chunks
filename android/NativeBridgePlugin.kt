@@ -201,6 +201,22 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                     getTopBlocksAsync(worldPath, ChunkCoord(x, z, dimension), result)
                 }
             }
+            "getChunkColors" -> {
+                val worldPath = call.argument<String>("worldPath")
+                val chunksArg = call.argument<List<Map<String, Any>>>("chunks")
+                if (worldPath == null || chunksArg == null) {
+                    result.success(mapOf("success" to false, "error" to "argumentos ausentes"))
+                } else {
+                    val chunks = chunksArg.map {
+                        ChunkCoord(
+                            x = (it["x"] as Number).toInt(),
+                            z = (it["z"] as Number).toInt(),
+                            dimension = (it["dimension"] as Number).toInt()
+                        )
+                    }
+                    getChunkColorsAsync(worldPath, chunks, result)
+                }
+            }
             else -> result.notImplemented()
         }
     }
@@ -451,6 +467,32 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
         }.start()
     }
 
+    private fun getChunkColorsAsync(worldPath: String, chunks: List<ChunkCoord>, result: Result) {
+        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        Thread {
+            val colors = try {
+                ChunkScanner.getChunkColors(worldPath, chunks)
+            } catch (e: Throwable) {
+                emptyMap<ChunkCoord, String>()
+            }
+            mainHandler.post {
+                result.success(
+                    mapOf(
+                        "success" to true,
+                        "results" to colors.map { (chunk, block) ->
+                            mapOf(
+                                "x" to chunk.x,
+                                "z" to chunk.z,
+                                "dimension" to chunk.dimension,
+                                "block" to block
+                            )
+                        }
+                    )
+                )
+            }
+        }.start()
+    }
+
     companion object {
         const val CHANNEL_NAME = "chunk_tool/native"
         const val SHIZUKU_REQUEST_CODE = 1001
@@ -460,5 +502,4 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
         const val PREFS_NAME = "chunk_tool_prefs"
         const val PREF_KEY_TREE_URI = "picked_tree_uri"
     }
-    }
-    
+}
