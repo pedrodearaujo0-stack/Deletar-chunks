@@ -58,6 +58,8 @@ jobs:
           ls -la "$CPP_DIR/leveldb-mcpe/include/leveldb" || true
           echo "--- Conteudo de options.h (pra conferir nomes reais dos compressors) ---"
           cat "$CPP_DIR/leveldb-mcpe/include/leveldb/options.h" || true
+          echo "--- CMakeLists.txt raiz da leveldb-mcpe (pra achar o nome real do target/lib) ---"
+          cat "$CPP_DIR/leveldb-mcpe/CMakeLists.txt" || true
           echo "--- Procurando arquivos relacionados a compressor ---"
           find "$CPP_DIR/leveldb-mcpe" -iname "*compress*"
           echo "--- Conteudo de cada um encontrado ---"
@@ -137,3 +139,4 @@ jobs:
         with:
           name: chunk-tool-apk
           path: flutter_project/build/app/outputs/flutter-apk/app-debug.apk
+          
