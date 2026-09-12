@@ -164,4 +164,39 @@ Java_com_example_chunktool_NativeLevelDB_nativeGetTopBlocks(
     return env->NewStringUTF(joined.c_str());
 }
 
+// Versao leve: le so 1 coluna central do chunk (bem mais rapido que as 256),
+// usada pra colorir o mapa sem travar em mundos com muitos chunks.
+JNIEXPORT jstring JNICALL
+Java_com_example_chunktool_NativeLevelDB_nativeGetChunkTopBlock(
+    JNIEnv *env, jobject, jlong dbHandle, jint x, jint z, jint dimension) {
+    auto *db = reinterpret_cast<leveldb::DB *>(dbHandle);
+
+    const int lx = 8, lz = 8;  // coluna central do chunk
+
+    for (int subY = 19; subY >= -4; subY--) {
+        std::string key;
+        AppendPrefix(key, x, z, dimension);
+        key.push_back(static_cast<char>(0x2f));
+        key.push_back(static_cast<char>(subY));
+
+        std::string value;
+        leveldb::Status status = db->Get(leveldb::ReadOptions(), key, &value);
+        if (!status.ok()) continue;
+
+        SubchunkDecodeResult decoded = DecodeSubchunk(
+            reinterpret_cast<const uint8_t *>(value.data()), value.size());
+        if (!decoded.success) continue;
+
+        for (int ly = 15; ly >= 0; ly--) {
+            int blockIndex = (lx * 16 + lz) * 16 + ly;
+            const std::string &name = decoded.blockNames[blockIndex];
+            if (!name.empty() && name != "minecraft:air") {
+                return env->NewStringUTF(name.c_str());
+            }
+        }
+    }
+
+    return env->NewStringUTF("");
+}
+
 }
