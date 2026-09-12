@@ -97,10 +97,10 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
     _loadColors();
   }
 
-  void _handleTap(TapUpDetails details, int minX, int minZ) {
+  void _handleTap(TapUpDetails details, int minX, int minZ, double effectiveTileSize) {
     final local = details.localPosition;
-    final chunkX = (local.dx / tileSize).floor() + minX;
-    final chunkZ = (local.dy / tileSize).floor() + minZ;
+    final chunkX = (local.dx / effectiveTileSize).floor() + minX;
+    final chunkZ = (local.dy / effectiveTileSize).floor() + minZ;
 
     ChunkCoord? match;
     for (final c in _dimChunks) {
@@ -223,8 +223,20 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
     final maxX = chunks.map((c) => c.x).reduce((a, b) => a > b ? a : b);
     final minZ = chunks.map((c) => c.z).reduce((a, b) => a < b ? a : b);
     final maxZ = chunks.map((c) => c.z).reduce((a, b) => a > b ? a : b);
-    final width = (maxX - minX + 1) * tileSize;
-    final height = (maxZ - minZ + 1) * tileSize;
+
+    // Protecao: se a area for grande demais, o Android nao consegue desenhar
+    // um canvas gigante de uma vez so. Encolhe o tamanho de cada quadrado
+    // pra caber num limite seguro.
+    const maxCanvasDimension = 6000.0;
+    final rawWidth = (maxX - minX + 1) * tileSize;
+    final rawHeight = (maxZ - minZ + 1) * tileSize;
+    final biggestSide = rawWidth > rawHeight ? rawWidth : rawHeight;
+    final effectiveTileSize = biggestSide > maxCanvasDimension
+        ? tileSize * (maxCanvasDimension / biggestSide)
+        : tileSize;
+
+    final width = (maxX - minX + 1) * effectiveTileSize;
+    final height = (maxZ - minZ + 1) * effectiveTileSize;
 
     return Column(
       children: [
@@ -256,7 +268,8 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
             maxScale: 20,
             minScale: 0.05,
             child: GestureDetector(
-              onTapUp: (details) => _handleTap(details, minX, minZ),
+              onTapUp: (details) =>
+                  _handleTap(details, minX, minZ, effectiveTileSize),
               child: CustomPaint(
                 size: Size(width, height),
                 painter: _MapPainter(
@@ -265,7 +278,7 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
                   selected: _selected,
                   minX: minX,
                   minZ: minZ,
-                  tileSize: tileSize,
+                  tileSize: effectiveTileSize,
                   keyFn: _key,
                 ),
               ),
