@@ -45,3 +45,23 @@ class ChunkScanResult {
     );
   }
 }
+
+class DeleteChunksResult {
+  final bool success;
+  final String? error;
+  final int deletedCount;
+
+  DeleteChunksResult({
+    required this.success,
+    this.error,
+    required this.deletedCount,
+  });
+
+  factory DeleteChunksResult.fromMap(Map<dynamic, dynamic> map) {
+    return DeleteChunksResult(
+      success: map['success'] as bool? ?? false,
+      error: map['error'] as String?,
+      deletedCount: (map['deletedCount'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
