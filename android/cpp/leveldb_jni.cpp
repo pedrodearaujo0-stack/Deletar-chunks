@@ -4,6 +4,7 @@
 #include "leveldb/options.h"
 #include "leveldb/iterator.h"
 #include "leveldb/zlib_compressor.h"
+#include "subchunk_decoder.h"
 
 static std::string g_lastError;
 
@@ -104,6 +105,63 @@ JNIEXPORT void JNICALL
 Java_com_example_chunktool_NativeLevelDB_nativeIteratorClose(JNIEnv *, jobject, jlong iterHandle) {
     auto *it = reinterpret_cast<leveldb::Iterator *>(iterHandle);
     delete it;
+}
+
+static void AppendPrefix(std::string &key, int32_t x, int32_t z, int32_t dimension) {
+    key.append(reinterpret_cast<const char *>(&x), 4);
+    key.append(reinterpret_cast<const char *>(&z), 4);
+    if (dimension != 0) {
+        key.append(reinterpret_cast<const char *>(&dimension), 4);
+    }
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_example_chunktool_NativeLevelDB_nativeGetTopBlocks(
+    JNIEnv *env, jobject, jlong dbHandle, jint x, jint z, jint dimension) {
+    auto *db = reinterpret_cast<leveldb::DB *>(dbHandle);
+
+    std::string topBlocks[256];  // indice = lx * 16 + lz
+    int filled = 0;
+
+    // Sobe de -4 (chao) ate 19 (teto), mas testamos de cima pra baixo.
+    for (int subY = 19; subY >= -4 && filled < 256; subY--) {
+        std::string key;
+        AppendPrefix(key, x, z, dimension);
+        key.push_back(static_cast<char>(0x2f));  // tag SubChunkPrefix
+        key.push_back(static_cast<char>(subY));
+
+        std::string value;
+        leveldb::Status status = db->Get(leveldb::ReadOptions(), key, &value);
+        if (!status.ok()) continue;
+
+        SubchunkDecodeResult decoded = DecodeSubchunk(
+            reinterpret_cast<const uint8_t *>(value.data()), value.size());
+        if (!decoded.success) continue;
+
+        for (int lx = 0; lx < 16 && filled < 256; lx++) {
+            for (int lz = 0; lz < 16; lz++) {
+                int colIndex = lx * 16 + lz;
+                if (!topBlocks[colIndex].empty()) continue;
+                for (int ly = 15; ly >= 0; ly--) {
+                    int blockIndex = (lx * 16 + lz) * 16 + ly;
+                    const std::string &name = decoded.blockNames[blockIndex];
+                    if (!name.empty() && name != "minecraft:air") {
+                        topBlocks[colIndex] = name;
+                        filled++;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    std::string joined;
+    for (int i = 0; i < 256; i++) {
+        joined += topBlocks[i];
+        if (i < 255) joined += ';';
+    }
+
+    return env->NewStringUTF(joined.c_str());
 }
 
 }
