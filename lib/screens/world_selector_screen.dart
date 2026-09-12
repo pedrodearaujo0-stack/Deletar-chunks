@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/native_bridge.dart';
 import '../models/world_info.dart';
-import 'chunk_list_screen.dart';
+import 'world_map_screen.dart';
 
 class WorldSelectorScreen extends StatefulWidget {
   const WorldSelectorScreen({super.key});
@@ -318,7 +318,7 @@ class _WorldSelectorScreenState extends State<WorldSelectorScreen>
               if (world.path.startsWith('/')) {
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (context) => ChunkListScreen(
+                    builder: (context) => WorldMapScreen(
                       worldName: world.folderName,
                       worldPath: world.path,
                     ),
