@@ -20,7 +20,7 @@ find_library(log-lib log)
 find_library(z-lib z)
 
 target_link_libraries(chunktool_leveldb
-    leveldb
+    leveldb-mcpe
     ${log-lib}
     ${z-lib}
 )
