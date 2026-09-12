@@ -54,6 +54,8 @@ jobs:
           cp android/cpp/leveldb_jni.cpp "$CPP_DIR/"
           git clone --depth 1 https://github.com/teampathfinders/leveldb "$CPP_DIR/leveldb-mcpe"
           git -C "$CPP_DIR/leveldb-mcpe" submodule update --init --recursive || true
+          echo "--- Removendo port_posix_sse.cc (so serve pra x86, quebra build ARM) ---"
+          sed -i '/port_posix_sse\.cc/d' "$CPP_DIR/leveldb-mcpe/CMakeLists.txt"
           echo "--- Cabecalhos disponiveis em leveldb-mcpe/include/leveldb ---"
           ls -la "$CPP_DIR/leveldb-mcpe/include/leveldb" || true
           echo "--- Conteudo de options.h (pra conferir nomes reais dos compressors) ---"
@@ -139,4 +141,3 @@ jobs:
         with:
           name: chunk-tool-apk
           path: flutter_project/build/app/outputs/flutter-apk/app-debug.apk
-          
