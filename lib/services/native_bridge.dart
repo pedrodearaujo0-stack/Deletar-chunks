@@ -88,4 +88,25 @@ class NativeBridge {
     }
     return ChunkScanResult.fromMap(result);
   }
+
+  /// Apaga os chunks selecionados (todas as entradas do banco daquele
+  /// chunk, não só uma). Ação irreversível.
+  static Future<DeleteChunksResult> deleteChunks(
+    String worldPath,
+    List<ChunkCoord> chunks,
+  ) async {
+    final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+      'deleteChunks',
+      {
+        'worldPath': worldPath,
+        'chunks': chunks
+            .map((c) => {'x': c.x, 'z': c.z, 'dimension': c.dimension})
+            .toList(),
+      },
+    );
+    if (result == null) {
+      return DeleteChunksResult(success: false, error: 'Sem resposta', deletedCount: 0);
+    }
+    return DeleteChunksResult.fromMap(result);
+  }
 }
