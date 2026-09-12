@@ -219,10 +219,21 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
       return const Center(child: Text('Nenhum chunk nessa dimensão.'));
     }
 
-    final minX = chunks.map((c) => c.x).reduce((a, b) => a < b ? a : b);
-    final maxX = chunks.map((c) => c.x).reduce((a, b) => a > b ? a : b);
-    final minZ = chunks.map((c) => c.z).reduce((a, b) => a < b ? a : b);
-    final maxZ = chunks.map((c) => c.z).reduce((a, b) => a > b ? a : b);
+    final xs = chunks.map((c) => c.x).toList()..sort();
+    final zs = chunks.map((c) => c.z).toList()..sort();
+
+    // Usa percentil 1%-99% em vez de minimo/maximo bruto, pra nao deixar um
+    // unico chunk fora da curva (dado corrompido/distante) estourar a area
+    // calculada e encolher tudo ate sumir.
+    int percentile(List<int> sorted, double p) {
+      final idx = (sorted.length * p).floor().clamp(0, sorted.length - 1);
+      return sorted[idx];
+    }
+
+    final minX = percentile(xs, 0.01);
+    final maxX = percentile(xs, 0.99);
+    final minZ = percentile(zs, 0.01);
+    final maxZ = percentile(zs, 0.99);
 
     // Protecao: se a area for grande demais, o Android nao consegue desenhar
     // um canvas gigante de uma vez so. Encolhe o tamanho de cada quadrado
@@ -240,6 +251,14 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
 
     return Column(
       children: [
+        Padding(
+          padding: const EdgeInsets.all(8),
+          child: Text(
+            'chunks: ${chunks.length} | X: $minX..$maxX | Z: $minZ..$maxZ | '
+            'quadrado: ${effectiveTileSize.toStringAsFixed(2)}px',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
         if (dims.length > 1)
           SizedBox(
             height: 48,
