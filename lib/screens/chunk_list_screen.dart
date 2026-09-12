@@ -108,6 +108,63 @@ class _ChunkListScreenState extends State<ChunkListScreen> {
     }
   }
 
+  Future<void> _testDecode(ChunkCoord chunk) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Lendo blocos...'),
+          ],
+        ),
+      ),
+    );
+
+    final blocks = await NativeBridge.getTopBlocks(widget.worldPath, chunk);
+
+    if (!mounted) return;
+    Navigator.of(context).pop(); // fecha o "lendo..."
+
+    final counts = <String, int>{};
+    for (final b in blocks) {
+      final name = b.isEmpty ? '(vazio/ar)' : b;
+      counts[name] = (counts[name] ?? 0) + 1;
+    }
+    final sorted = counts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('X: ${chunk.x}, Z: ${chunk.z} (${chunk.dimensionName})'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView(
+            shrinkWrap: true,
+            children: sorted
+                .map((e) => ListTile(
+                      dense: true,
+                      title: Text(e.key),
+                      trailing: Text('${e.value}'),
+                    ))
+                .toList(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Fechar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -189,13 +246,20 @@ class _ChunkListScreenState extends State<ChunkListScreen> {
             itemBuilder: (context, index) {
               final chunk = chunks[index];
               final selected = _selected.contains(_keyFor(chunk));
-              return CheckboxListTile(
+              return ListTile(
                 dense: true,
-                value: selected,
-                onChanged: (_) => _toggle(chunk),
-                secondary: const Icon(Icons.grid_on_outlined),
+                onTap: () => _toggle(chunk),
+                leading: Checkbox(
+                  value: selected,
+                  onChanged: (_) => _toggle(chunk),
+                ),
                 title: Text('X: ${chunk.x}, Z: ${chunk.z}'),
                 subtitle: Text(chunk.dimensionName),
+                trailing: IconButton(
+                  icon: const Icon(Icons.visibility_outlined),
+                  tooltip: 'Testar leitura de blocos',
+                  onPressed: () => _testDecode(chunk),
+                ),
               );
             },
           ),
