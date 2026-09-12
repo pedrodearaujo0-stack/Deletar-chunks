@@ -15,5 +15,7 @@ class NativeLevelDB {
     external fun nativeIteratorValid(iterHandle: Long): Boolean
     external fun nativeIteratorNext(iterHandle: Long)
     external fun nativeIteratorKey(iterHandle: Long): ByteArray
+    external fun nativeIteratorSeek(iterHandle: Long, target: ByteArray)
+    external fun nativeDelete(dbHandle: Long, key: ByteArray): Boolean
     external fun nativeIteratorClose(iterHandle: Long)
 }
