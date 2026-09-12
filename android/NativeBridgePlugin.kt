@@ -174,6 +174,22 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                     scanChunksAsync(worldPath, result)
                 }
             }
+            "deleteChunks" -> {
+                val worldPath = call.argument<String>("worldPath")
+                val chunksArg = call.argument<List<Map<String, Any>>>("chunks")
+                if (worldPath == null || chunksArg == null) {
+                    result.success(mapOf("success" to false, "error" to "argumentos ausentes"))
+                } else {
+                    val chunks = chunksArg.map {
+                        ChunkCoord(
+                            x = (it["x"] as Number).toInt(),
+                            z = (it["z"] as Number).toInt(),
+                            dimension = (it["dimension"] as Number).toInt()
+                        )
+                    }
+                    deleteChunksAsync(worldPath, chunks, result)
+                }
+            }
             else -> result.notImplemented()
         }
     }
@@ -263,6 +279,164 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
             Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
         )
         activity.startActivityForResult(intent, FOLDER_PICK_REQUEST_CODE)
+    }
+
+    private fun getSavedTreeUri(): Uri? {
+        val context = activityBinding?.activity?.applicationContext ?: return null
+        val saved = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(PREF_KEY_TREE_URI, null) ?: return null
+        return Uri.parse(saved)
+    }
+
+    private fun listWorldsInPickedFolder(): List<Map<String, String>> {
+        val context = activityBinding?.activity?.applicationContext ?: return emptyList()
+        val treeUri = getSavedTreeUri() ?: return emptyList()
+        val root = DocumentFile.fromTreeUri(context, treeUri) ?: return emptyList()
+
+        val worlds = mutableListOf<Map<String, String>>()
+        root.listFiles().forEach { folder ->
+            if (folder.isDirectory && folder.findFile("level.dat") != null) {
+                worlds.add(
+                    mapOf(
+                        "folderName" to (folder.name ?: "?"),
+                        "path" to "Pasta escolhida"
+                    )
+                )
+            }
+        }
+        return worlds
+    }
+
+    // ---------- Arquivo .mcworld escolhido diretamente ----------
+
+    private fun pickWorldFile() {
+        val activity = activityBinding?.activity
+        if (activity == null) {
+            pendingFilePickResult?.success(null)
+            pendingFilePickResult = null
+            return
+        }
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+        intent.addCategory(Intent.CATEGORY_OPENABLE)
+        intent.type = "*/*"
+        activity.startActivityForResult(intent, FILE_PICK_REQUEST_CODE)
+    }
+
+    private fun extractMcworldToStaging(context: Context, fileUri: Uri): Map<String, String>? {
+        return try {
+            val displayName = queryDisplayName(context, fileUri) ?: "mundo_importado"
+            val safeName = displayName.substringBeforeLast(".").ifBlank { "mundo_importado" }
+
+            val stagingRoot = File(context.getExternalFilesDir(null), "imported_worlds/$safeName")
+            stagingRoot.deleteRecursively()
+            stagingRoot.mkdirs()
+
+            context.contentResolver.openInputStream(fileUri)?.use { input ->
+                ZipInputStream(input).use { zip ->
+                    var entry = zip.nextEntry
+                    while (entry != null) {
+                        val outFile = File(stagingRoot, entry.name)
+                        if (entry.isDirectory) {
+                            outFile.mkdirs()
+                        } else {
+                            outFile.parentFile?.mkdirs()
+                            outFile.outputStream().use { output -> zip.copyTo(output) }
+                        }
+                        zip.closeEntry()
+                        entry = zip.nextEntry
+                    }
+                }
+            } ?: return null
+
+            if (!File(stagingRoot, "level.dat").exists()) {
+                // as vezes o .mcworld tem uma subpasta interna em vez do level.dat na raiz
+                val inner = stagingRoot.listFiles()?.firstOrNull {
+                    it.isDirectory && File(it, "level.dat").exists()
+                }
+                if (inner != null) {
+                    return mapOf(
+                        "folderName" to safeName,
+                        "path" to inner.absolutePath
+                    )
+                }
+                return null
+            }
+
+            mapOf(
+                "folderName" to safeName,
+                "path" to stagingRoot.absolutePath
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun queryDisplayName(context: Context, uri: Uri): String? {
+        return try {
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (cursor.moveToFirst() && nameIndex >= 0) cursor.getString(nameIndex) else null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    // ---------- Varredura de chunks (LevelDB nativo) ----------
+
+    private fun scanChunksAsync(worldPath: String, result: Result) {
+        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        Thread {
+            val scanResult = try {
+                ChunkScanner.scan(worldPath)
+            } catch (e: Throwable) {
+                ChunkScanner.ScanResult(false, "Excecao: ${e.message}", emptyList())
+            }
+            mainHandler.post {
+                result.success(
+                    mapOf(
+                        "success" to scanResult.success,
+                        "error" to scanResult.error,
+                        "chunks" to scanResult.chunks.map {
+                            mapOf("x" to it.x, "z" to it.z, "dimension" to it.dimension)
+                        }
+                    )
+                )
+            }
+        }.start()
+    }
+
+    private fun deleteChunksAsync(worldPath: String, chunks: List<ChunkCoord>, result: Result) {
+        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        Thread {
+            val deleteResult = try {
+                ChunkScanner.deleteChunks(worldPath, chunks)
+            } catch (e: Throwable) {
+                ChunkScanner.DeleteResult(false, "Excecao: ${e.message}", 0)
+            }
+            mainHandler.post {
+                result.success(
+                    mapOf(
+                        "success" to deleteResult.success,
+                        "error" to deleteResult.error,
+                        "deletedCount" to deleteResult.deletedCount
+                    )
+                )
+            }
+        }.start()
+    }
+
+    companion object {
+        const val CHANNEL_NAME = "chunk_tool/native"
+        const val SHIZUKU_REQUEST_CODE = 1001
+        const val FOLDER_PICK_REQUEST_CODE = 2001
+        const val FILE_PICK_REQUEST_CODE = 3001
+        const val BuildConfigPackage = "com.example.chunktool"
+        const val PREFS_NAME = "chunk_tool_prefs"
+        const val PREF_KEY_TREE_URI = "picked_tree_uri"
+    }
+}
+ty.startActivityForResult(intent, FOLDER_PICK_REQUEST_CODE)
     }
 
     private fun getSavedTreeUri(): Uri? {
