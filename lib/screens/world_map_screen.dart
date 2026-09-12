@@ -284,6 +284,7 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
         if (_deleting) const LinearProgressIndicator(),
         Expanded(
           child: InteractiveViewer(
+            constrained: false,
             maxScale: 20,
             minScale: 0.05,
             child: GestureDetector(
