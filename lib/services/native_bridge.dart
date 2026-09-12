@@ -109,4 +109,25 @@ class NativeBridge {
     }
     return DeleteChunksResult.fromMap(result);
   }
+
+  /// Teste de texto: le os blocos do topo do chunk (256 colunas), pra
+  /// conferir se a decodificacao do formato binario ta correta antes de
+  /// montar o mapa visual.
+  static Future<List<String>> getTopBlocks(
+    String worldPath,
+    ChunkCoord chunk,
+  ) async {
+    final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+      'getTopBlocks',
+      {
+        'worldPath': worldPath,
+        'x': chunk.x,
+        'z': chunk.z,
+        'dimension': chunk.dimension,
+      },
+    );
+    if (result == null) return [];
+    final blocks = (result['blocks'] as List<dynamic>?) ?? [];
+    return blocks.map((b) => b as String).toList();
+  }
 }
