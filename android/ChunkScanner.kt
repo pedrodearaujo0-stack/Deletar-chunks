@@ -38,9 +38,16 @@ object ChunkScanner {
             val x = buffer.int
             val z = buffer.int
             when (key.size) {
-                9, 10 -> ChunkCoord(x, z, 0)
+                9, 10 -> {
+                    val tag = key[8].toInt() and 0xFF
+                    if (!isKnownChunkTag(tag)) return null
+                    ChunkCoord(x, z, 0)
+                }
                 13, 14 -> {
                     val dim = buffer.int
+                    val tag = key[12].toInt() and 0xFF
+                    if (!isKnownChunkTag(tag)) return null
+                    if (dim != 1 && dim != 2) return null
                     ChunkCoord(x, z, dim)
                 }
                 else -> null
@@ -48,6 +55,13 @@ object ChunkScanner {
         } catch (e: Exception) {
             null
         }
+    }
+
+    // Tags conhecidos de dado de chunk de verdade (terreno, entidades, etc.),
+    // conforme o formato documentado do Bedrock. Filtra chaves de outros
+    // tipos (jogador, atores, etc.) que por acaso tem o mesmo tamanho.
+    private fun isKnownChunkTag(tag: Int): Boolean {
+        return (tag in 43..64) || tag == 118
     }
 
     fun deleteChunks(worldPath: String, chunks: List<ChunkCoord>): DeleteResult {
