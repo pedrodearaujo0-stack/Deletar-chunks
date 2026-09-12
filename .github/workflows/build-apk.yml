@@ -54,8 +54,17 @@ jobs:
           cp android/cpp/leveldb_jni.cpp "$CPP_DIR/"
           git clone --depth 1 https://github.com/teampathfinders/leveldb "$CPP_DIR/leveldb-mcpe"
           git -C "$CPP_DIR/leveldb-mcpe" submodule update --init --recursive || true
-          echo "--- Removendo port_posix_sse.cc (so serve pra x86, quebra build ARM) ---"
-          sed -i '/port_posix_sse\.cc/d' "$CPP_DIR/leveldb-mcpe/CMakeLists.txt"
+          echo "--- Substituindo port_posix_sse.cc por versao stub (so serve pra x86) ---"
+          STUB_FILE="$CPP_DIR/leveldb-mcpe/src/port/port_posix_sse.cc"
+          echo '#include <cstdint>' > "$STUB_FILE"
+          echo '#include <cstddef>' >> "$STUB_FILE"
+          echo 'namespace leveldb {' >> "$STUB_FILE"
+          echo 'namespace port {' >> "$STUB_FILE"
+          echo 'uint32_t AcceleratedCRC32C(uint32_t crc, const char* buf, size_t size) {' >> "$STUB_FILE"
+          echo '    return 0;' >> "$STUB_FILE"
+          echo '}' >> "$STUB_FILE"
+          echo '}' >> "$STUB_FILE"
+          echo '}' >> "$STUB_FILE"
           echo "--- Trocando funcoes _unlocked (nao existem no Android/Bionic) ---"
           sed -i \
             -e 's/fread_unlocked/fread/g' \
