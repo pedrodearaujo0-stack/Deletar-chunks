@@ -32,6 +32,10 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
   int _loadedCount = 0;
   bool _deleting = false;
 
+  final TransformationController _transformController = TransformationController();
+  final GlobalKey _viewportKey = GlobalKey();
+  bool _didInitialFit = false;
+
   @override
   void initState() {
     super.initState();
@@ -93,8 +97,30 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
       _dimension = dim;
       _selected.clear();
       _loadedCount = 0;
+      _didInitialFit = false;
     });
     _loadColors();
+  }
+
+  void _tryInitialFit(double contentWidth, double contentHeight) {
+    if (_didInitialFit) return;
+    final renderBox =
+        _viewportKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+    final viewportSize = renderBox.size;
+    if (viewportSize.width <= 0 || viewportSize.height <= 0) return;
+
+    final scaleX = viewportSize.width / contentWidth;
+    final scaleY = viewportSize.height / contentHeight;
+    final scale = (scaleX < scaleY ? scaleX : scaleY).clamp(0.02, 1.0);
+
+    final dx = (viewportSize.width - contentWidth * scale) / 2;
+    final dy = (viewportSize.height - contentHeight * scale) / 2;
+
+    _transformController.value = Matrix4.identity()
+      ..translate(dx, dy)
+      ..scale(scale);
+    _didInitialFit = true;
   }
 
   void _handleTap(TapUpDetails details, int minX, int minZ, double effectiveTileSize) {
@@ -283,26 +309,35 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
           ),
         if (_deleting) const LinearProgressIndicator(),
         Expanded(
-          child: InteractiveViewer(
-            constrained: false,
-            maxScale: 20,
-            minScale: 0.05,
-            child: GestureDetector(
-              onTapUp: (details) =>
-                  _handleTap(details, minX, minZ, effectiveTileSize),
-              child: CustomPaint(
-                size: Size(width, height),
-                painter: _MapPainter(
-                  chunks: chunks,
-                  colorCache: _colorCache,
-                  selected: _selected,
-                  minX: minX,
-                  minZ: minZ,
-                  tileSize: effectiveTileSize,
-                  keyFn: _key,
+          child: Builder(
+            builder: (context) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _tryInitialFit(width, height);
+              });
+              return InteractiveViewer(
+                key: _viewportKey,
+                transformationController: _transformController,
+                constrained: false,
+                maxScale: 20,
+                minScale: 0.02,
+                child: GestureDetector(
+                  onTapUp: (details) =>
+                      _handleTap(details, minX, minZ, effectiveTileSize),
+                  child: CustomPaint(
+                    size: Size(width, height),
+                    painter: _MapPainter(
+                      chunks: chunks,
+                      colorCache: _colorCache,
+                      selected: _selected,
+                      minX: minX,
+                      minZ: minZ,
+                      tileSize: effectiveTileSize,
+                      keyFn: _key,
+                    ),
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
       ],
@@ -331,13 +366,6 @@ class _MapPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // TESTE DE DIAGNOSTICO: retangulo vermelho cobrindo tudo, desenhado
-    // antes dos chunks. Se isso nao aparecer, o problema nao e nos dados.
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, size.width, size.height),
-      Paint()..color = const Color(0xFFFF0000),
-    );
-
     final fillPaint = Paint();
     final strokePaint = Paint()
       ..style = PaintingStyle.stroke
