@@ -38,6 +38,7 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
   bool _didInitialFit = false;
 
   bool _selectionMode = false;
+  bool _showFullMap = false;
   Offset? _dragStart;
   Offset? _dragCurrent;
 
@@ -261,6 +262,13 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
         title: Text(widget.worldName),
         actions: [
           IconButton(
+            icon: Icon(_showFullMap ? Icons.grid_on : Icons.grid_off),
+            tooltip: _showFullMap
+                ? 'Mostrar só chunks carregados'
+                : 'Mostrar mapa completo (com áreas não geradas)',
+            onPressed: () => setState(() => _showFullMap = !_showFullMap),
+          ),
+          IconButton(
             icon: Icon(_selectionMode ? Icons.crop_free : Icons.select_all),
             tooltip: _selectionMode
                 ? 'Sair do modo de seleção por área'
@@ -459,6 +467,7 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
                       keyFn: _key,
                       dragStart: _dragStart,
                       dragCurrent: _dragCurrent,
+                      showFullMap: _showFullMap,
                     ),
                   ),
                 ),
@@ -481,6 +490,7 @@ class _MapPainter extends CustomPainter {
   final String Function(int, int, int) keyFn;
   final Offset? dragStart;
   final Offset? dragCurrent;
+  final bool showFullMap;
 
   _MapPainter({
     required this.chunks,
@@ -492,10 +502,20 @@ class _MapPainter extends CustomPainter {
     required this.keyFn,
     this.dragStart,
     this.dragCurrent,
+    this.showFullMap = false,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (showFullMap) {
+      // Pinta a area inteira com a cor de "nao gerado" primeiro. Os chunks
+      // reais desenhados depois ficam por cima, cobrindo essa cor de base.
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+        Paint()..color = const Color(0xFFEDEDED),
+      );
+    }
+
     final fillPaint = Paint();
     final strokePaint = Paint()
       ..style = PaintingStyle.stroke
