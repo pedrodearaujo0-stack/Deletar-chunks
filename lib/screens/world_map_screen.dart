@@ -37,6 +37,10 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
   final GlobalKey _viewportKey = GlobalKey();
   bool _didInitialFit = false;
 
+  bool _selectionMode = false;
+  Offset? _dragStart;
+  Offset? _dragCurrent;
+
   @override
   void initState() {
     super.initState();
@@ -148,6 +152,38 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
     });
   }
 
+  void _commitDragSelection(int minX, int minZ, double effectiveTileSize) {
+    final start = _dragStart;
+    final current = _dragCurrent;
+    if (start == null || current == null) {
+      setState(() {
+        _dragStart = null;
+        _dragCurrent = null;
+      });
+      return;
+    }
+
+    final left = start.dx < current.dx ? start.dx : current.dx;
+    final right = start.dx > current.dx ? start.dx : current.dx;
+    final top = start.dy < current.dy ? start.dy : current.dy;
+    final bottom = start.dy > current.dy ? start.dy : current.dy;
+
+    final chunkXMin = (left / effectiveTileSize).floor() + minX;
+    final chunkXMax = (right / effectiveTileSize).floor() + minX;
+    final chunkZMin = (top / effectiveTileSize).floor() + minZ;
+    final chunkZMax = (bottom / effectiveTileSize).floor() + minZ;
+
+    setState(() {
+      for (final c in _dimChunks) {
+        if (c.x >= chunkXMin && c.x <= chunkXMax && c.z >= chunkZMin && c.z <= chunkZMax) {
+          _selected.add(_key(c.x, c.z, c.dimension));
+        }
+      }
+      _dragStart = null;
+      _dragCurrent = null;
+    });
+  }
+
   Future<void> _confirmAndDelete() async {
     final toDelete = _dimChunks
         .where((c) => _selected.contains(_key(c.x, c.z, c.dimension)))
@@ -225,18 +261,59 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
         title: Text(widget.worldName),
         actions: [
           IconButton(
+            icon: Icon(_selectionMode ? Icons.crop_free : Icons.select_all),
+            tooltip: _selectionMode
+                ? 'Sair do modo de seleção por área'
+                : 'Selecionar área (arrastar)',
+            onPressed: () => setState(() {
+              _selectionMode = !_selectionMode;
+              _dragStart = null;
+              _dragCurrent = null;
+            }),
+          ),
+          IconButton(
             icon: const Icon(Icons.save_alt_outlined),
             tooltip: 'Salvar mundo (.mcworld)',
             onPressed: _saving ? null : _saveWorld,
           ),
-          if (_selected.isNotEmpty)
+          if (_selected.isNotEmpty) ...[
+            IconButton(
+              icon: const Icon(Icons.clear),
+              tooltip: 'Limpar seleção',
+              onPressed: () => setState(() => _selected.clear()),
+            ),
             IconButton(
               icon: const Icon(Icons.delete_outline),
               onPressed: _deleting ? null : _confirmAndDelete,
             ),
+          ],
         ],
       ),
       body: _buildBody(),
+    );
+  }
+
+  Widget? _buildSelectionInfo() {
+    if (_selected.isEmpty) return null;
+    final selectedChunks =
+        _dimChunks.where((c) => _selected.contains(_key(c.x, c.z, c.dimension))).toList();
+    if (selectedChunks.isEmpty) return null;
+
+    final xs = selectedChunks.map((c) => c.x);
+    final zs = selectedChunks.map((c) => c.z);
+    final minSx = xs.reduce((a, b) => a < b ? a : b);
+    final maxSx = xs.reduce((a, b) => a > b ? a : b);
+    final minSz = zs.reduce((a, b) => a < b ? a : b);
+    final maxSz = zs.reduce((a, b) => a > b ? a : b);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      color: Theme.of(context).colorScheme.primaryContainer,
+      child: Text(
+        '${selectedChunks.length} selecionado(s) — X: $minSx..$maxSx, Z: $minSz..$maxSz',
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
     );
   }
 
@@ -300,16 +377,20 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
     final width = (maxX - minX + 1) * effectiveTileSize;
     final height = (maxZ - minZ + 1) * effectiveTileSize;
 
+    final selectionInfo = _buildSelectionInfo();
+
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.all(8),
           child: Text(
             'chunks: ${chunks.length} | X: $minX..$maxX | Z: $minZ..$maxZ | '
-            'quadrado: ${effectiveTileSize.toStringAsFixed(2)}px',
+            'quadrado: ${effectiveTileSize.toStringAsFixed(2)}px'
+            '${_selectionMode ? " | MODO SELEÇÃO: arraste pra marcar uma área" : ""}',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
+        if (selectionInfo != null) selectionInfo,
         if (dims.length > 1)
           SizedBox(
             height: 48,
@@ -346,9 +427,26 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
                 constrained: false,
                 maxScale: 20,
                 minScale: 0.02,
+                panEnabled: !_selectionMode,
+                scaleEnabled: !_selectionMode,
                 child: GestureDetector(
-                  onTapUp: (details) =>
-                      _handleTap(details, minX, minZ, effectiveTileSize),
+                  onTapUp: _selectionMode
+                      ? null
+                      : (details) =>
+                          _handleTap(details, minX, minZ, effectiveTileSize),
+                  onPanStart: _selectionMode
+                      ? (details) => setState(() {
+                            _dragStart = details.localPosition;
+                            _dragCurrent = details.localPosition;
+                          })
+                      : null,
+                  onPanUpdate: _selectionMode
+                      ? (details) =>
+                          setState(() => _dragCurrent = details.localPosition)
+                      : null,
+                  onPanEnd: _selectionMode
+                      ? (_) => _commitDragSelection(minX, minZ, effectiveTileSize)
+                      : null,
                   child: CustomPaint(
                     size: Size(width, height),
                     painter: _MapPainter(
@@ -359,6 +457,8 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
                       minZ: minZ,
                       tileSize: effectiveTileSize,
                       keyFn: _key,
+                      dragStart: _dragStart,
+                      dragCurrent: _dragCurrent,
                     ),
                   ),
                 ),
@@ -379,6 +479,8 @@ class _MapPainter extends CustomPainter {
   final int minZ;
   final double tileSize;
   final String Function(int, int, int) keyFn;
+  final Offset? dragStart;
+  final Offset? dragCurrent;
 
   _MapPainter({
     required this.chunks,
@@ -388,6 +490,8 @@ class _MapPainter extends CustomPainter {
     required this.minZ,
     required this.tileSize,
     required this.keyFn,
+    this.dragStart,
+    this.dragCurrent,
   });
 
   @override
@@ -411,6 +515,21 @@ class _MapPainter extends CustomPainter {
       if (selected.contains(key)) {
         canvas.drawRect(rect, strokePaint);
       }
+    }
+
+    if (dragStart != null && dragCurrent != null) {
+      final dragRect = Rect.fromPoints(dragStart!, dragCurrent!);
+      canvas.drawRect(
+        dragRect,
+        Paint()..color = const Color(0x552196F3),
+      );
+      canvas.drawRect(
+        dragRect,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = const Color(0xFF2196F3),
+      );
     }
   }
 
