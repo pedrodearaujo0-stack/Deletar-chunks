@@ -156,4 +156,17 @@ class NativeBridge {
     }
     return map;
   }
+
+  /// Compacta a pasta do mundo (ja editada) de volta num .mcworld e abre o
+  /// seletor "salvar como" do Android pro usuario escolher onde guardar.
+  static Future<bool> saveWorldAsMcworld(
+    String worldPath,
+    String suggestedName,
+  ) async {
+    final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+      'saveWorldAsMcworld',
+      {'worldPath': worldPath, 'suggestedName': suggestedName},
+    );
+    return result?['success'] as bool? ?? false;
+  }
 }
