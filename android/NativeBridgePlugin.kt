@@ -487,4 +487,102 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                 android.os.Handler(android.os.Looper.getMainLooper()).post {
                     result.success(mapOf("success" to false, "error" to "Erro ao compactar: ${e.message}"))
                 }
-            
+            }
+        }.start()
+    }
+
+    // ---------- Varredura de chunks (LevelDB nativo) ----------
+
+    private fun scanChunksAsync(worldPath: String, result: Result) {
+        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        Thread {
+            val scanResult = try {
+                ChunkScanner.scan(worldPath)
+            } catch (e: Throwable) {
+                ChunkScanner.ScanResult(false, "Excecao: ${e.message}", emptyList())
+            }
+            mainHandler.post {
+                result.success(
+                    mapOf(
+                        "success" to scanResult.success,
+                        "error" to scanResult.error,
+                        "chunks" to scanResult.chunks.map {
+                            mapOf("x" to it.x, "z" to it.z, "dimension" to it.dimension)
+                        }
+                    )
+                )
+            }
+        }.start()
+    }
+
+    private fun deleteChunksAsync(worldPath: String, chunks: List<ChunkCoord>, result: Result) {
+        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        Thread {
+            val deleteResult = try {
+                ChunkScanner.deleteChunks(worldPath, chunks)
+            } catch (e: Throwable) {
+                ChunkScanner.DeleteResult(false, "Excecao: ${e.message}", 0)
+            }
+            mainHandler.post {
+                result.success(
+                    mapOf(
+                        "success" to deleteResult.success,
+                        "error" to deleteResult.error,
+                        "deletedCount" to deleteResult.deletedCount
+                    )
+                )
+            }
+        }.start()
+    }
+
+    private fun getTopBlocksAsync(worldPath: String, chunk: ChunkCoord, result: Result) {
+        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        Thread {
+            val blocks = try {
+                ChunkScanner.getTopBlocks(worldPath, chunk)
+            } catch (e: Throwable) {
+                emptyList<String>()
+            }
+            mainHandler.post {
+                result.success(mapOf("success" to true, "blocks" to blocks))
+            }
+        }.start()
+    }
+
+    private fun getChunkColorsAsync(worldPath: String, chunks: List<ChunkCoord>, result: Result) {
+        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        Thread {
+            val colors = try {
+                ChunkScanner.getChunkColors(worldPath, chunks)
+            } catch (e: Throwable) {
+                emptyMap<ChunkCoord, String>()
+            }
+            mainHandler.post {
+                result.success(
+                    mapOf(
+                        "success" to true,
+                        "results" to colors.map { (chunk, block) ->
+                            mapOf(
+                                "x" to chunk.x,
+                                "z" to chunk.z,
+                                "dimension" to chunk.dimension,
+                                "block" to block
+                            )
+                        }
+                    )
+                )
+            }
+        }.start()
+    }
+
+    companion object {
+        const val CHANNEL_NAME = "chunk_tool/native"
+        const val SHIZUKU_REQUEST_CODE = 1001
+        const val FOLDER_PICK_REQUEST_CODE = 2001
+        const val FILE_PICK_REQUEST_CODE = 3001
+        const val SAVE_WORLD_REQUEST_CODE = 4001
+        const val BuildConfigPackage = "com.example.chunktool"
+        const val PREFS_NAME = "chunk_tool_prefs"
+        const val PREF_KEY_TREE_URI = "picked_tree_uri"
+    }
+}
