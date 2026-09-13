@@ -31,6 +31,7 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
   bool _loadingColors = false;
   int _loadedCount = 0;
   bool _deleting = false;
+  bool _saving = false;
 
   final TransformationController _transformController = TransformationController();
   final GlobalKey _viewportKey = GlobalKey();
@@ -198,12 +199,36 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
     }
   }
 
+  Future<void> _saveWorld() async {
+    setState(() => _saving = true);
+    final suggestedName = '${widget.worldName}_editado.mcworld';
+    final success =
+        await NativeBridge.saveWorldAsMcworld(widget.worldPath, suggestedName);
+    if (!mounted) return;
+    setState(() => _saving = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          success
+              ? 'Mundo salvo. Toque no arquivo pra reimportar no Minecraft.'
+              : 'Não foi possível salvar (ou foi cancelado).',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.worldName),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.save_alt_outlined),
+            tooltip: 'Salvar mundo (.mcworld)',
+            onPressed: _saving ? null : _saveWorld,
+          ),
           if (_selected.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.delete_outline),
@@ -308,6 +333,7 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
             value: chunks.isEmpty ? null : _loadedCount / chunks.length,
           ),
         if (_deleting) const LinearProgressIndicator(),
+        if (_saving) const LinearProgressIndicator(),
         Expanded(
           child: Builder(
             builder: (context) {
