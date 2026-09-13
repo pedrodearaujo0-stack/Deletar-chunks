@@ -73,6 +73,23 @@ object ChunkScanner {
 
         var totalDeleted = 0
         for (chunk in chunks) {
+            // Limpa as entidades (mobs, itens no chao, etc.) associadas a esse
+            // chunk primeiro — elas ficam numa parte separada do banco, entao
+            // apagar so o terreno nao remove elas.
+            val digpKey = buildDigpKey(chunk.x, chunk.z, chunk.dimension)
+            val digpValue = db.nativeGet(handle, digpKey)
+            if (digpValue != null) {
+                var offset = 0
+                while (offset + 8 <= digpValue.size) {
+                    val actorId = digpValue.copyOfRange(offset, offset + 8)
+                    db.nativeDelete(handle, buildActorKey(actorId))
+                    totalDeleted++
+                    offset += 8
+                }
+                db.nativeDelete(handle, digpKey)
+                totalDeleted++
+            }
+
             val prefix = buildPrefix(chunk.x, chunk.z, chunk.dimension)
             val iter = db.nativeCreateIterator(handle)
             db.nativeIteratorSeek(iter, prefix)
@@ -88,6 +105,26 @@ object ChunkScanner {
         db.nativeClose(handle)
 
         return DeleteResult(success = true, error = null, deletedCount = totalDeleted)
+    }
+
+    private fun buildDigpKey(x: Int, z: Int, dimension: Int): ByteArray {
+        val prefix = "digp".toByteArray(Charsets.US_ASCII)
+        val buffer = if (dimension == 0) {
+            ByteBuffer.allocate(prefix.size + 8).order(ByteOrder.LITTLE_ENDIAN)
+        } else {
+            ByteBuffer.allocate(prefix.size + 12).order(ByteOrder.LITTLE_ENDIAN)
+        }
+        buffer.put(prefix)
+        buffer.putInt(x)
+        buffer.putInt(z)
+        if (dimension != 0) {
+            buffer.putInt(dimension)
+        }
+        return buffer.array()
+    }
+
+    private fun buildActorKey(id: ByteArray): ByteArray {
+        return "actorprefix".toByteArray(Charsets.US_ASCII) + id
     }
 
     private fun buildPrefix(x: Int, z: Int, dimension: Int): ByteArray {
