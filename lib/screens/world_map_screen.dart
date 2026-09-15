@@ -358,18 +358,13 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
     final xs = chunks.map((c) => c.x).toList()..sort();
     final zs = chunks.map((c) => c.z).toList()..sort();
 
-    // Usa percentil 1%-99% em vez de minimo/maximo bruto, pra nao deixar um
-    // unico chunk fora da curva (dado corrompido/distante) estourar a area
-    // calculada e encolher tudo ate sumir.
-    int percentile(List<int> sorted, double p) {
-      final idx = (sorted.length * p).floor().clamp(0, sorted.length - 1);
-      return sorted[idx];
-    }
-
-    final minX = percentile(xs, 0.01);
-    final maxX = percentile(xs, 0.99);
-    final minZ = percentile(zs, 0.01);
-    final maxZ = percentile(zs, 0.99);
+    // Area real (min/max bruto). O filtro de chaves invalidas na leitura ja
+    // evita o problema de chunk "fantasma" que justificava usar percentil
+    // antes, entao aqui usamos a area real sem cortar nada.
+    final minX = xs.first;
+    final maxX = xs.last;
+    final minZ = zs.first;
+    final maxZ = zs.last;
 
     // Protecao: se a area for grande demais, o Android nao consegue desenhar
     // um canvas gigante de uma vez so. Encolhe o tamanho de cada quadrado
