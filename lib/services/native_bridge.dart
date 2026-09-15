@@ -133,7 +133,7 @@ class NativeBridge {
 
   /// Le o bloco do topo (1 coluna central) de varios chunks de uma vez.
   /// Usado pra colorir o mapa sem travar em mundos grandes.
-  static Future<Map<String, String>> getChunkColors(
+  static Future<Map<String, ChunkSurface>> getChunkColors(
     String worldPath,
     List<ChunkCoord> chunks,
   ) async {
@@ -148,11 +148,14 @@ class NativeBridge {
     );
     if (result == null) return {};
     final rawResults = (result['results'] as List<dynamic>?) ?? [];
-    final map = <String, String>{};
+    final map = <String, ChunkSurface>{};
     for (final item in rawResults) {
       final m = Map<dynamic, dynamic>.from(item);
       final key = '${m['x']}_${m['z']}_${m['dimension']}';
-      map[key] = m['block'] as String? ?? '';
+      map[key] = ChunkSurface(
+        block: m['block'] as String? ?? '',
+        height: (m['height'] as num?)?.toInt() ?? 0,
+      );
     }
     return map;
   }
