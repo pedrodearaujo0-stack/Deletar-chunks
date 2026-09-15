@@ -133,6 +133,15 @@ static void AppendPrefix(std::string &key, int32_t x, int32_t z, int32_t dimensi
     }
 }
 
+// O Nether tem um teto solido de bedrock/pedra-do-inferno cobrindo ele
+// inteiro por volta de Y 120-127. Comecar a busca do topo real do Overworld
+// (subchunk 19) faria a busca sempre bater nesse teto primeiro, em vez do
+// terreno de verdade. Por isso o Nether comeca mais baixo, pulando o teto.
+static int TopSubchunkForDimension(int32_t dimension) {
+    if (dimension == 1) return 6;  // Nether: comeca em Y 111, abaixo do teto
+    return 19;                      // Overworld/End: usa a altura estendida
+}
+
 JNIEXPORT jstring JNICALL
 Java_com_example_chunktool_NativeLevelDB_nativeGetTopBlocks(
     JNIEnv *env, jobject, jlong dbHandle, jint x, jint z, jint dimension) {
@@ -141,8 +150,9 @@ Java_com_example_chunktool_NativeLevelDB_nativeGetTopBlocks(
     std::string topBlocks[256];  // indice = lx * 16 + lz
     int filled = 0;
 
-    // Sobe de -4 (chao) ate 19 (teto), mas testamos de cima pra baixo.
-    for (int subY = 19; subY >= -4 && filled < 256; subY--) {
+    // Sobe do topo pra baixo, ate achar bloco solido. No Nether comeca
+    // abaixo do teto (ver TopSubchunkForDimension).
+    for (int subY = TopSubchunkForDimension(dimension); subY >= -4 && filled < 256; subY--) {
         std::string key;
         AppendPrefix(key, x, z, dimension);
         key.push_back(static_cast<char>(0x2f));  // tag SubChunkPrefix
@@ -192,7 +202,7 @@ Java_com_example_chunktool_NativeLevelDB_nativeGetChunkTopBlock(
 
     const int lx = 8, lz = 8;  // coluna central do chunk
 
-    for (int subY = 19; subY >= -4; subY--) {
+    for (int subY = TopSubchunkForDimension(dimension); subY >= -4; subY--) {
         std::string key;
         AppendPrefix(key, x, z, dimension);
         key.push_back(static_cast<char>(0x2f));
