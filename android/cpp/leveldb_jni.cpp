@@ -138,7 +138,7 @@ static void AppendPrefix(std::string &key, int32_t x, int32_t z, int32_t dimensi
 // (subchunk 19) faria a busca sempre bater nesse teto primeiro, em vez do
 // terreno de verdade. Por isso o Nether comeca mais baixo, pulando o teto.
 static int TopSubchunkForDimension(int32_t dimension) {
-    if (dimension == 1) return 6;  // Nether: comeca em Y 111, abaixo do teto
+    if (dimension == 1) return 2;  // Nether: comeca em Y 47, bem abaixo do teto
     return 19;                      // Overworld/End: usa a altura estendida
 }
 
@@ -196,16 +196,18 @@ Java_com_example_chunktool_NativeLevelDB_nativeGetTopBlocks(
 // travar em mundos com muitos chunks), usada pra colorir o mapa. Varios
 // pontos em vez de 1 so porque dimensoes com muito vazio (Nether) tem
 // bastante chance do ponto central cair numa caverna/buraco mesmo em
-// chunks bem explorados.
+// chunks bem explorados. startSubY deixa o usuario escolher de qual altura
+// comecar a busca (dimensoes com varias camadas solidas, tipo o Nether,
+// podem precisar ajustar isso manualmente).
 // Retorna "nomeDoBloco|altura" (altura = coordenada Y absoluta do bloco).
 JNIEXPORT jstring JNICALL
 Java_com_example_chunktool_NativeLevelDB_nativeGetChunkTopBlock(
-    JNIEnv *env, jobject, jlong dbHandle, jint x, jint z, jint dimension) {
+    JNIEnv *env, jobject, jlong dbHandle, jint x, jint z, jint dimension, jint startSubY) {
     auto *db = reinterpret_cast<leveldb::DB *>(dbHandle);
 
     const int samplePoints[5][2] = {{8, 8}, {4, 4}, {4, 12}, {12, 4}, {12, 12}};
 
-    for (int subY = TopSubchunkForDimension(dimension); subY >= -4; subY--) {
+    for (int subY = startSubY; subY >= -4; subY--) {
         std::string key;
         AppendPrefix(key, x, z, dimension);
         key.push_back(static_cast<char>(0x2f));
