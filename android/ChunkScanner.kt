@@ -163,15 +163,21 @@ object ChunkScanner {
 
     /// Le o bloco do topo (1 coluna central) de varios chunks de uma vez,
     /// abrindo o banco uma unica vez. Usado pra colorir o mapa sem travar
-    /// em mundos grandes. Retorna par (nome do bloco, altura).
-    fun getChunkColors(worldPath: String, chunks: List<ChunkCoord>): Map<ChunkCoord, Pair<String, Int>> {
+    /// em mundos grandes. Retorna par (nome do bloco, altura). startSubY
+    /// deixa escolher de qual altura comecar a busca (util em dimensoes
+    /// com varias camadas solidas empilhadas, tipo o Nether).
+    fun getChunkColors(
+        worldPath: String,
+        chunks: List<ChunkCoord>,
+        startSubY: Int
+    ): Map<ChunkCoord, Pair<String, Int>> {
         val db = NativeLevelDB()
         val handle = db.nativeOpen("$worldPath/db")
         if (handle == 0L) return emptyMap()
 
         val result = mutableMapOf<ChunkCoord, Pair<String, Int>>()
         for (chunk in chunks) {
-            val raw = db.nativeGetChunkTopBlock(handle, chunk.x, chunk.z, chunk.dimension)
+            val raw = db.nativeGetChunkTopBlock(handle, chunk.x, chunk.z, chunk.dimension, startSubY)
             val parts = raw.split("|")
             val block = parts.getOrNull(0) ?: ""
             val height = parts.getOrNull(1)?.toIntOrNull() ?: 0
