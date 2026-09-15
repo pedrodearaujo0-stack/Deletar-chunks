@@ -555,18 +555,19 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
             val colors = try {
                 ChunkScanner.getChunkColors(worldPath, chunks)
             } catch (e: Throwable) {
-                emptyMap<ChunkCoord, String>()
+                emptyMap<ChunkCoord, Pair<String, Int>>()
             }
             mainHandler.post {
                 result.success(
                     mapOf(
                         "success" to true,
-                        "results" to colors.map { (chunk, block) ->
+                        "results" to colors.map { (chunk, info) ->
                             mapOf(
                                 "x" to chunk.x,
                                 "z" to chunk.z,
                                 "dimension" to chunk.dimension,
-                                "block" to block
+                                "block" to info.first,
+                                "height" to info.second
                             )
                         }
                     )
