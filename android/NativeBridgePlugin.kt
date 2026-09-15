@@ -233,6 +233,7 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
             "getChunkColors" -> {
                 val worldPath = call.argument<String>("worldPath")
                 val chunksArg = call.argument<List<Map<String, Any>>>("chunks")
+                val startSubY = call.argument<Int>("startSubY") ?: 19
                 if (worldPath == null || chunksArg == null) {
                     result.success(mapOf("success" to false, "error" to "argumentos ausentes"))
                 } else {
@@ -243,7 +244,7 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                             dimension = (it["dimension"] as Number).toInt()
                         )
                     }
-                    getChunkColorsAsync(worldPath, chunks, result)
+                    getChunkColorsAsync(worldPath, chunks, startSubY, result)
                 }
             }
             "saveWorldAsMcworld" -> {
@@ -549,11 +550,11 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
         }.start()
     }
 
-    private fun getChunkColorsAsync(worldPath: String, chunks: List<ChunkCoord>, result: Result) {
+    private fun getChunkColorsAsync(worldPath: String, chunks: List<ChunkCoord>, startSubY: Int, result: Result) {
         val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
         Thread {
             val colors = try {
-                ChunkScanner.getChunkColors(worldPath, chunks)
+                ChunkScanner.getChunkColors(worldPath, chunks, startSubY)
             } catch (e: Throwable) {
                 emptyMap<ChunkCoord, Pair<String, Int>>()
             }
