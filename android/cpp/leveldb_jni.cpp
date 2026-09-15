@@ -184,6 +184,7 @@ Java_com_example_chunktool_NativeLevelDB_nativeGetTopBlocks(
 
 // Versao leve: le so 1 coluna central do chunk (bem mais rapido que as 256),
 // usada pra colorir o mapa sem travar em mundos com muitos chunks.
+// Retorna "nomeDoBloco|altura" (altura = coordenada Y absoluta do bloco).
 JNIEXPORT jstring JNICALL
 Java_com_example_chunktool_NativeLevelDB_nativeGetChunkTopBlock(
     JNIEnv *env, jobject, jlong dbHandle, jint x, jint z, jint dimension) {
@@ -209,7 +210,9 @@ Java_com_example_chunktool_NativeLevelDB_nativeGetChunkTopBlock(
             int blockIndex = (lx * 16 + lz) * 16 + ly;
             const std::string &name = decoded.blockNames[blockIndex];
             if (!name.empty() && name != "minecraft:air") {
-                return env->NewStringUTF(name.c_str());
+                int worldHeight = subY * 16 + ly;
+                std::string result = name + "|" + std::to_string(worldHeight);
+                return env->NewStringUTF(result.c_str());
             }
         }
     }
