@@ -65,3 +65,10 @@ class DeleteChunksResult {
     );
   }
 }
+
+class ChunkSurface {
+  final String block;
+  final int height;
+
+  ChunkSurface({required this.block, required this.height});
+}
