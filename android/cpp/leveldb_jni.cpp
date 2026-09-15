@@ -192,15 +192,18 @@ Java_com_example_chunktool_NativeLevelDB_nativeGetTopBlocks(
     return env->NewStringUTF(joined.c_str());
 }
 
-// Versao leve: le so 1 coluna central do chunk (bem mais rapido que as 256),
-// usada pra colorir o mapa sem travar em mundos com muitos chunks.
+// Versao leve: le alguns pontos espalhados do chunk (nao os 256, pra nao
+// travar em mundos com muitos chunks), usada pra colorir o mapa. Varios
+// pontos em vez de 1 so porque dimensoes com muito vazio (Nether) tem
+// bastante chance do ponto central cair numa caverna/buraco mesmo em
+// chunks bem explorados.
 // Retorna "nomeDoBloco|altura" (altura = coordenada Y absoluta do bloco).
 JNIEXPORT jstring JNICALL
 Java_com_example_chunktool_NativeLevelDB_nativeGetChunkTopBlock(
     JNIEnv *env, jobject, jlong dbHandle, jint x, jint z, jint dimension) {
     auto *db = reinterpret_cast<leveldb::DB *>(dbHandle);
 
-    const int lx = 8, lz = 8;  // coluna central do chunk
+    const int samplePoints[5][2] = {{8, 8}, {4, 4}, {4, 12}, {12, 4}, {12, 12}};
 
     for (int subY = TopSubchunkForDimension(dimension); subY >= -4; subY--) {
         std::string key;
@@ -216,13 +219,17 @@ Java_com_example_chunktool_NativeLevelDB_nativeGetChunkTopBlock(
             reinterpret_cast<const uint8_t *>(value.data()), value.size());
         if (!decoded.success) continue;
 
-        for (int ly = 15; ly >= 0; ly--) {
-            int blockIndex = (lx * 16 + lz) * 16 + ly;
-            const std::string &name = decoded.blockNames[blockIndex];
-            if (!name.empty() && name != "minecraft:air") {
-                int worldHeight = subY * 16 + ly;
-                std::string result = name + "|" + std::to_string(worldHeight);
-                return env->NewStringUTF(result.c_str());
+        for (auto &point : samplePoints) {
+            int lx = point[0];
+            int lz = point[1];
+            for (int ly = 15; ly >= 0; ly--) {
+                int blockIndex = (lx * 16 + lz) * 16 + ly;
+                const std::string &name = decoded.blockNames[blockIndex];
+                if (!name.empty() && name != "minecraft:air") {
+                    int worldHeight = subY * 16 + ly;
+                    std::string result = name + "|" + std::to_string(worldHeight);
+                    return env->NewStringUTF(result.c_str());
+                }
             }
         }
     }
