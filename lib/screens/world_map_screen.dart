@@ -26,6 +26,7 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
   List<ChunkCoord> _allChunks = [];
 
   int _dimension = 0;
+  int _startSubY = 19;
   final Map<String, ChunkSurface> _surfaceCache = {};
   final Set<String> _selected = {};
   bool _loadingColors = false;
@@ -70,10 +71,13 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
     setState(() {
       _allChunks = result.chunks;
       _dimension = dims.contains(0) ? 0 : (dims.isNotEmpty ? dims.first : 0);
+      _startSubY = _defaultStartSubY(_dimension);
       _loadingChunks = false;
     });
     _loadColors();
   }
+
+  int _defaultStartSubY(int dimension) => dimension == 1 ? 2 : 19;
 
   Future<void> _loadColors() async {
     setState(() => _loadingColors = true);
@@ -85,7 +89,8 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
       if (!mounted) return;
       final end = (i + batchSize > pending.length) ? pending.length : i + batchSize;
       final batch = pending.sublist(i, end);
-      final results = await NativeBridge.getChunkColors(widget.worldPath, batch);
+      final results =
+          await NativeBridge.getChunkColors(widget.worldPath, batch, _startSubY);
       if (!mounted) return;
       setState(() {
         results.forEach((key, surface) {
@@ -104,9 +109,24 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
       _selected.clear();
       _loadedCount = 0;
       _didInitialFit = false;
+      _startSubY = _defaultStartSubY(dim);
+      _surfaceCache.clear();
     });
     _loadColors();
   }
+
+  void _changeLayer(int delta) {
+    final newValue = (_startSubY + delta).clamp(-4, 19);
+    if (newValue == _startSubY) return;
+    setState(() {
+      _startSubY = newValue;
+      _loadedCount = 0;
+      _surfaceCache.clear();
+    });
+    _loadColors();
+  }
+
+  int get _startSubYWorldHeight => _startSubY * 16 + 15;
 
   void _tryInitialFit(double contentWidth, double contentHeight) {
     if (_didInitialFit) return;
@@ -394,6 +414,25 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
           ),
         ),
         if (selectionInfo != null) selectionInfo,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              const Text('Camada:'),
+              IconButton(
+                icon: const Icon(Icons.arrow_downward),
+                tooltip: 'Descer (procurar mais embaixo)',
+                onPressed: () => _changeLayer(-1),
+              ),
+              Text('Y até ${_startSubYWorldHeight}'),
+              IconButton(
+                icon: const Icon(Icons.arrow_upward),
+                tooltip: 'Subir',
+                onPressed: () => _changeLayer(1),
+              ),
+            ],
+          ),
+        ),
         if (dims.length > 1)
           SizedBox(
             height: 48,
