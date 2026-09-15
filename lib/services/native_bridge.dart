@@ -136,6 +136,7 @@ class NativeBridge {
   static Future<Map<String, ChunkSurface>> getChunkColors(
     String worldPath,
     List<ChunkCoord> chunks,
+    int startSubY,
   ) async {
     final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
       'getChunkColors',
@@ -144,6 +145,7 @@ class NativeBridge {
         'chunks': chunks
             .map((c) => {'x': c.x, 'z': c.z, 'dimension': c.dimension})
             .toList(),
+        'startSubY': startSubY,
       },
     );
     if (result == null) return {};
