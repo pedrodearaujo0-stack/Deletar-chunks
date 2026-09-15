@@ -26,7 +26,7 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
   List<ChunkCoord> _allChunks = [];
 
   int _dimension = 0;
-  final Map<String, Color> _colorCache = {};
+  final Map<String, ChunkSurface> _surfaceCache = {};
   final Set<String> _selected = {};
   bool _loadingColors = false;
   int _loadedCount = 0;
@@ -78,7 +78,7 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
   Future<void> _loadColors() async {
     setState(() => _loadingColors = true);
     final pending = _dimChunks
-        .where((c) => !_colorCache.containsKey(_key(c.x, c.z, c.dimension)))
+        .where((c) => !_surfaceCache.containsKey(_key(c.x, c.z, c.dimension)))
         .toList();
 
     for (var i = 0; i < pending.length; i += batchSize) {
@@ -88,8 +88,8 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
       final results = await NativeBridge.getChunkColors(widget.worldPath, batch);
       if (!mounted) return;
       setState(() {
-        results.forEach((key, block) {
-          _colorCache[key] = BlockColors.forBlock(block);
+        results.forEach((key, surface) {
+          _surfaceCache[key] = surface;
         });
         _loadedCount += batch.length;
       });
@@ -459,7 +459,7 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
                     size: Size(width, height),
                     painter: _MapPainter(
                       chunks: chunks,
-                      colorCache: _colorCache,
+                      surfaceCache: _surfaceCache,
                       selected: _selected,
                       minX: minX,
                       minZ: minZ,
@@ -482,7 +482,7 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
 
 class _MapPainter extends CustomPainter {
   final List<ChunkCoord> chunks;
-  final Map<String, Color> colorCache;
+  final Map<String, ChunkSurface> surfaceCache;
   final Set<String> selected;
   final int minX;
   final int minZ;
@@ -494,7 +494,7 @@ class _MapPainter extends CustomPainter {
 
   _MapPainter({
     required this.chunks,
-    required this.colorCache,
+    required this.surfaceCache,
     required this.selected,
     required this.minX,
     required this.minZ,
@@ -505,6 +505,20 @@ class _MapPainter extends CustomPainter {
     this.showFullMap = false,
   });
 
+  // Clareia ou escurece uma cor um pouco, pra simular relevo (igual o mapa
+  // vanilla: mais claro se for mais alto que o vizinho, mais escuro se for
+  // mais baixo).
+  Color _shade(Color color, int delta) {
+    if (delta == 0) return color;
+    final factor = delta > 0 ? 1.18 : 0.82;
+    return Color.fromARGB(
+      color.alpha,
+      (color.red * factor).clamp(0, 255).round(),
+      (color.green * factor).clamp(0, 255).round(),
+      (color.blue * factor).clamp(0, 255).round(),
+    );
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     if (showFullMap) {
@@ -512,7 +526,7 @@ class _MapPainter extends CustomPainter {
       // reais desenhados depois ficam por cima, cobrindo essa cor de base.
       canvas.drawRect(
         Rect.fromLTWH(0, 0, size.width, size.height),
-        Paint()..color = const Color(0xFFEDEDED),
+        Paint()..color = const Color(0xFFBBDEFB),
       );
     }
 
@@ -524,7 +538,21 @@ class _MapPainter extends CustomPainter {
 
     for (final chunk in chunks) {
       final key = keyFn(chunk.x, chunk.z, chunk.dimension);
-      final color = colorCache[key] ?? const Color(0xFFCCCCCC);
+      final surface = surfaceCache[key];
+      Color color = const Color(0xFFCCCCCC);
+
+      if (surface != null) {
+        color = BlockColors.forBlock(surface.block);
+        // Compara com o vizinho "ao norte" (Z menor), igual o mapa vanilla.
+        final northKey = keyFn(chunk.x, chunk.z - 1, chunk.dimension);
+        final north = surfaceCache[northKey];
+        if (north != null) {
+          final diff = surface.height - north.height;
+          final delta = diff.clamp(-1, 1);
+          color = _shade(color, delta);
+        }
+      }
+
       final left = (chunk.x - minX) * tileSize;
       final top = (chunk.z - minZ) * tileSize;
       final rect = Rect.fromLTWH(left, top, tileSize, tileSize);
