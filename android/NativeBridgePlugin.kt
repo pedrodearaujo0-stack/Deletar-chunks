@@ -256,6 +256,30 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                     saveWorldAsMcworld(worldPath, suggestedName, result)
                 }
             }
+            "readLevelDatFlags" -> {
+                val worldPath = call.argument<String>("worldPath")
+                if (worldPath == null) {
+                    result.success(mapOf("success" to false, "error" to "worldPath ausente"))
+                } else {
+                    val flags = LevelDatEditor.readFlags(worldPath)
+                    if (flags == null) {
+                        result.success(mapOf("success" to false, "error" to "nao foi possivel ler o level.dat"))
+                    } else {
+                        result.success(mapOf("success" to true, "flags" to flags))
+                    }
+                }
+            }
+            "writeLevelDatFlags" -> {
+                val worldPath = call.argument<String>("worldPath")
+                @Suppress("UNCHECKED_CAST")
+                val flagsArg = call.argument<Map<String, Boolean>>("flags")
+                if (worldPath == null || flagsArg == null) {
+                    result.success(mapOf("success" to false, "error" to "argumentos ausentes"))
+                } else {
+                    val ok = LevelDatEditor.writeFlags(worldPath, flagsArg)
+                    result.success(mapOf("success" to ok))
+                }
+            }
             else -> result.notImplemented()
         }
     }
@@ -463,128 +487,4 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
         }
     }
 
-    private fun saveWorldAsMcworld(worldPath: String, suggestedName: String, result: Result) {
-        val activity = activityBinding?.activity
-        if (activity == null) {
-            result.success(mapOf("success" to false, "error" to "sem tela ativa"))
-            return
-        }
-        Thread {
-            try {
-                val sourceDir = File(worldPath)
-                val tempFile = File(activity.cacheDir, "export_${System.currentTimeMillis()}.mcworld")
-                zipFolder(sourceDir, tempFile)
-                pendingSaveTempFile = tempFile
-                pendingSaveResult = result
-
-                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
-                    intent.addCategory(Intent.CATEGORY_OPENABLE)
-                    intent.type = "application/octet-stream"
-                    intent.putExtra(Intent.EXTRA_TITLE, suggestedName)
-                    activity.startActivityForResult(intent, SAVE_WORLD_REQUEST_CODE)
-                }
-            } catch (e: Exception) {
-                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    result.success(mapOf("success" to false, "error" to "Erro ao compactar: ${e.message}"))
-                }
-            }
-        }.start()
-    }
-
-    // ---------- Varredura de chunks (LevelDB nativo) ----------
-
-    private fun scanChunksAsync(worldPath: String, result: Result) {
-        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
-        Thread {
-            val scanResult = try {
-                ChunkScanner.scan(worldPath)
-            } catch (e: Throwable) {
-                ChunkScanner.ScanResult(false, "Excecao: ${e.message}", emptyList())
-            }
-            mainHandler.post {
-                result.success(
-                    mapOf(
-                        "success" to scanResult.success,
-                        "error" to scanResult.error,
-                        "chunks" to scanResult.chunks.map {
-                            mapOf("x" to it.x, "z" to it.z, "dimension" to it.dimension)
-                        }
-                    )
-                )
-            }
-        }.start()
-    }
-
-    private fun deleteChunksAsync(worldPath: String, chunks: List<ChunkCoord>, result: Result) {
-        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
-        Thread {
-            val deleteResult = try {
-                ChunkScanner.deleteChunks(worldPath, chunks)
-            } catch (e: Throwable) {
-                ChunkScanner.DeleteResult(false, "Excecao: ${e.message}", 0)
-            }
-            mainHandler.post {
-                result.success(
-                    mapOf(
-                        "success" to deleteResult.success,
-                        "error" to deleteResult.error,
-                        "deletedCount" to deleteResult.deletedCount
-                    )
-                )
-            }
-        }.start()
-    }
-
-    private fun getTopBlocksAsync(worldPath: String, chunk: ChunkCoord, result: Result) {
-        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
-        Thread {
-            val blocks = try {
-                ChunkScanner.getTopBlocks(worldPath, chunk)
-            } catch (e: Throwable) {
-                emptyList<String>()
-            }
-            mainHandler.post {
-                result.success(mapOf("success" to true, "blocks" to blocks))
-            }
-        }.start()
-    }
-
-    private fun getChunkColorsAsync(worldPath: String, chunks: List<ChunkCoord>, startSubY: Int, result: Result) {
-        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
-        Thread {
-            val colors = try {
-                ChunkScanner.getChunkColors(worldPath, chunks, startSubY)
-            } catch (e: Throwable) {
-                emptyMap<ChunkCoord, Pair<String, Int>>()
-            }
-            mainHandler.post {
-                result.success(
-                    mapOf(
-                        "success" to true,
-                        "results" to colors.map { (chunk, info) ->
-                            mapOf(
-                                "x" to chunk.x,
-                                "z" to chunk.z,
-                                "dimension" to chunk.dimension,
-                                "block" to info.first,
-                                "height" to info.second
-                            )
-                        }
-                    )
-                )
-            }
-        }.start()
-    }
-
-    companion object {
-        const val CHANNEL_NAME = "chunk_tool/native"
-        const val SHIZUKU_REQUEST_CODE = 1001
-        const val FOLDER_PICK_REQUEST_CODE = 2001
-        const val FILE_PICK_REQUEST_CODE = 3001
-        const val SAVE_WORLD_REQUEST_CODE = 4001
-        const val BuildConfigPackage = "com.example.chunktool"
-        const val PREFS_NAME = "chunk_tool_prefs"
-        const val PREF_KEY_TREE_URI = "picked_tree_uri"
-    }
-}
+    p
