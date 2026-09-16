@@ -32,6 +32,7 @@ jobs:
           cp android/ShizukuUserService.kt "$KOTLIN_DIR/"
           cp android/NativeLevelDB.kt "$KOTLIN_DIR/"
           cp android/ChunkScanner.kt "$KOTLIN_DIR/"
+          cp android/LevelDatEditor.kt "$KOTLIN_DIR/"
 
       - name: Copiar interface AIDL do Shizuku
         run: |
