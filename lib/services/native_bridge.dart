@@ -174,4 +174,28 @@ class NativeBridge {
     );
     return result?['success'] as bool? ?? false;
   }
+
+  /// Le as flags de conquista/trapaca do level.dat (cheatsEnabled,
+  /// commandsEnabled, hasBeenLoadedInCreative). Retorna null se falhar.
+  static Future<Map<String, bool>?> readLevelDatFlags(String worldPath) async {
+    final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+      'readLevelDatFlags',
+      {'worldPath': worldPath},
+    );
+    if (result == null || result['success'] != true) return null;
+    final flagsRaw = Map<dynamic, dynamic>.from(result['flags'] as Map);
+    return flagsRaw.map((k, v) => MapEntry(k as String, v as bool));
+  }
+
+  /// Escreve de volta uma ou mais flags do level.dat.
+  static Future<bool> writeLevelDatFlags(
+    String worldPath,
+    Map<String, bool> flags,
+  ) async {
+    final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+      'writeLevelDatFlags',
+      {'worldPath': worldPath, 'flags': flags},
+    );
+    return result?['success'] as bool? ?? false;
+  }
 }
