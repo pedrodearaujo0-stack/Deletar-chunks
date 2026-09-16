@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/native_bridge.dart';
 import '../models/chunk_scan_result.dart';
 import '../models/block_colors.dart';
+import 'level_dat_editor_screen.dart';
 
 class WorldMapScreen extends StatefulWidget {
   final String worldName;
@@ -278,6 +279,7 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: _buildToolsDrawer(),
       appBar: AppBar(
         title: Text(widget.worldName),
         actions: [
@@ -318,6 +320,61 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
         ],
       ),
       body: _buildBody(),
+    );
+  }
+
+  Widget _buildToolsDrawer() {
+    return Drawer(
+      child: SafeArea(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            DrawerHeader(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  const Text('Ferramentas', style: TextStyle(fontSize: 20)),
+                  Text(widget.worldName, style: Theme.of(context).textTheme.bodySmall),
+                ],
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.settings_outlined),
+              title: const Text('Editar mundo (level.dat)'),
+              subtitle: const Text('Conquistas, trapaças, etc.'),
+              onTap: () {
+                Navigator.of(context).pop(); // fecha a gaveta
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => LevelDatEditorScreen(
+                      worldPath: widget.worldPath,
+                    ),
+                  ),
+                );
+              },
+            ),
+            const ListTile(
+              leading: Icon(Icons.diamond_outlined),
+              title: Text('Raio X de minérios'),
+              subtitle: Text('Em breve'),
+              enabled: false,
+            ),
+            const ListTile(
+              leading: Icon(Icons.terrain_outlined),
+              title: Text('Localizador de bioma'),
+              subtitle: Text('Em breve'),
+              enabled: false,
+            ),
+            const ListTile(
+              leading: Icon(Icons.grid_4x4_outlined),
+              title: Text('Chunks de slime'),
+              subtitle: Text('Em breve'),
+              enabled: false,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -489,27 +546,20 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
                   onPanEnd: _selectionMode
                       ? (_) => _commitDragSelection(minX, minZ, effectiveTileSize)
                       : null,
-                  child: ValueListenableBuilder<Matrix4>(
-                    valueListenable: _transformController,
-                    builder: (context, matrix, _) {
-                      final scale = matrix.getMaxScaleOnAxis();
-                      return CustomPaint(
-                        size: Size(width, height),
-                        painter: _MapPainter(
-                          chunks: chunks,
-                          surfaceCache: _surfaceCache,
-                          selected: _selected,
-                          minX: minX,
-                          minZ: minZ,
-                          tileSize: effectiveTileSize,
-                          keyFn: _key,
-                          dragStart: _dragStart,
-                          dragCurrent: _dragCurrent,
-                          showFullMap: _showFullMap,
-                          currentScale: scale,
-                        ),
-                      );
-                    },
+                  child: CustomPaint(
+                    size: Size(width, height),
+                    painter: _MapPainter(
+                      chunks: chunks,
+                      surfaceCache: _surfaceCache,
+                      selected: _selected,
+                      minX: minX,
+                      minZ: minZ,
+                      tileSize: effectiveTileSize,
+                      keyFn: _key,
+                      dragStart: _dragStart,
+                      dragCurrent: _dragCurrent,
+                      showFullMap: _showFullMap,
+                    ),
                   ),
                 ),
               );
@@ -532,7 +582,6 @@ class _MapPainter extends CustomPainter {
   final Offset? dragStart;
   final Offset? dragCurrent;
   final bool showFullMap;
-  final double currentScale;
 
   _MapPainter({
     required this.chunks,
@@ -545,7 +594,6 @@ class _MapPainter extends CustomPainter {
     this.dragStart,
     this.dragCurrent,
     this.showFullMap = false,
-    this.currentScale = 1.0,
   });
 
   // Clareia ou escurece uma cor um pouco, pra simular relevo (igual o mapa
@@ -579,12 +627,6 @@ class _MapPainter extends CustomPainter {
       ..strokeWidth = 1
       ..color = Colors.red;
 
-    // So desenha a coordenada de cada chunk quando o zoom ja deixa o
-    // quadrado grande o suficiente pra ler — em mundos com muitos chunks,
-    // desenhar texto em todos o tempo todo deixaria o mapa lento.
-    final onScreenTileSize = tileSize * currentScale;
-    final showLabels = onScreenTileSize > 30;
-
     for (final chunk in chunks) {
       final key = keyFn(chunk.x, chunk.z, chunk.dimension);
       final surface = surfaceCache[key];
@@ -611,22 +653,6 @@ class _MapPainter extends CustomPainter {
 
       if (selected.contains(key)) {
         canvas.drawRect(rect, strokePaint);
-      }
-
-      if (showLabels) {
-        final label = '${chunk.x * 16},${chunk.z * 16}';
-        final textColor = color.computeLuminance() > 0.5 ? Colors.black : Colors.white;
-        // Divide pela escala atual pra manter o texto num tamanho legivel
-        // constante na tela, em vez de crescer sem limite com o zoom.
-        final onScreenFontSize = (10 / currentScale).clamp(0.5, 20.0);
-        final tp = TextPainter(
-          text: TextSpan(
-            text: label,
-            style: TextStyle(color: textColor, fontSize: onScreenFontSize),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout(maxWidth: tileSize * 3);
-        tp.paint(canvas, Offset(left + 1, top + 1));
       }
     }
 
