@@ -489,20 +489,27 @@ class _WorldMapScreenState extends State<WorldMapScreen> {
                   onPanEnd: _selectionMode
                       ? (_) => _commitDragSelection(minX, minZ, effectiveTileSize)
                       : null,
-                  child: CustomPaint(
-                    size: Size(width, height),
-                    painter: _MapPainter(
-                      chunks: chunks,
-                      surfaceCache: _surfaceCache,
-                      selected: _selected,
-                      minX: minX,
-                      minZ: minZ,
-                      tileSize: effectiveTileSize,
-                      keyFn: _key,
-                      dragStart: _dragStart,
-                      dragCurrent: _dragCurrent,
-                      showFullMap: _showFullMap,
-                    ),
+                  child: ValueListenableBuilder<Matrix4>(
+                    valueListenable: _transformController,
+                    builder: (context, matrix, _) {
+                      final scale = matrix.getMaxScaleOnAxis();
+                      return CustomPaint(
+                        size: Size(width, height),
+                        painter: _MapPainter(
+                          chunks: chunks,
+                          surfaceCache: _surfaceCache,
+                          selected: _selected,
+                          minX: minX,
+                          minZ: minZ,
+                          tileSize: effectiveTileSize,
+                          keyFn: _key,
+                          dragStart: _dragStart,
+                          dragCurrent: _dragCurrent,
+                          showFullMap: _showFullMap,
+                          currentScale: scale,
+                        ),
+                      );
+                    },
                   ),
                 ),
               );
@@ -525,6 +532,7 @@ class _MapPainter extends CustomPainter {
   final Offset? dragStart;
   final Offset? dragCurrent;
   final bool showFullMap;
+  final double currentScale;
 
   _MapPainter({
     required this.chunks,
@@ -537,6 +545,7 @@ class _MapPainter extends CustomPainter {
     this.dragStart,
     this.dragCurrent,
     this.showFullMap = false,
+    this.currentScale = 1.0,
   });
 
   // Clareia ou escurece uma cor um pouco, pra simular relevo (igual o mapa
@@ -570,6 +579,12 @@ class _MapPainter extends CustomPainter {
       ..strokeWidth = 1
       ..color = Colors.red;
 
+    // So desenha a coordenada de cada chunk quando o zoom ja deixa o
+    // quadrado grande o suficiente pra ler — em mundos com muitos chunks,
+    // desenhar texto em todos o tempo todo deixaria o mapa lento.
+    final onScreenTileSize = tileSize * currentScale;
+    final showLabels = onScreenTileSize > 30;
+
     for (final chunk in chunks) {
       final key = keyFn(chunk.x, chunk.z, chunk.dimension);
       final surface = surfaceCache[key];
@@ -596,6 +611,22 @@ class _MapPainter extends CustomPainter {
 
       if (selected.contains(key)) {
         canvas.drawRect(rect, strokePaint);
+      }
+
+      if (showLabels) {
+        final label = '${chunk.x * 16},${chunk.z * 16}';
+        final textColor = color.computeLuminance() > 0.5 ? Colors.black : Colors.white;
+        // Divide pela escala atual pra manter o texto num tamanho legivel
+        // constante na tela, em vez de crescer sem limite com o zoom.
+        final onScreenFontSize = (10 / currentScale).clamp(0.5, 20.0);
+        final tp = TextPainter(
+          text: TextSpan(
+            text: label,
+            style: TextStyle(color: textColor, fontSize: onScreenFontSize),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout(maxWidth: tileSize * 3);
+        tp.paint(canvas, Offset(left + 1, top + 1));
       }
     }
 
