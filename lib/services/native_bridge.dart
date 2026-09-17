@@ -175,16 +175,19 @@ class NativeBridge {
     return result?['success'] as bool? ?? false;
   }
 
-  /// Le as flags de conquista/trapaca do level.dat (cheatsEnabled,
-  /// commandsEnabled, hasBeenLoadedInCreative). Retorna null se falhar.
-  static Future<Map<String, bool>?> readLevelDatFlags(String worldPath) async {
+  /// Le as flags de conquista/trapaca e o modo de jogo do level.dat.
+  /// Retorna null se falhar. Mapa vem com uma chave extra "gameType"
+  /// (0=Sobrevivencia, 1=Criativo, 2=Aventura) junto das flags booleanas.
+  static Future<LevelDatState?> readLevelDatFlags(String worldPath) async {
     final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
       'readLevelDatFlags',
       {'worldPath': worldPath},
     );
     if (result == null || result['success'] != true) return null;
     final flagsRaw = Map<dynamic, dynamic>.from(result['flags'] as Map);
-    return flagsRaw.map((k, v) => MapEntry(k as String, v as bool));
+    final flags = flagsRaw.map((k, v) => MapEntry(k as String, v as bool));
+    final gameType = (result['gameType'] as num?)?.toInt() ?? 0;
+    return LevelDatState(flags: flags, gameType: gameType);
   }
 
   /// Escreve de volta uma ou mais flags do level.dat.
@@ -198,4 +201,21 @@ class NativeBridge {
     );
     return result?['success'] as bool? ?? false;
   }
+
+  /// Muda o modo de jogo salvo no mundo (0=Sobrevivencia, 1=Criativo,
+  /// 2=Aventura). Precisa estar em Sobrevivencia pra conquistas valerem.
+  static Future<bool> writeLevelDatGameType(String worldPath, int gameType) async {
+    final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+      'writeLevelDatGameType',
+      {'worldPath': worldPath, 'gameType': gameType},
+    );
+    return result?['success'] as bool? ?? false;
+  }
+}
+
+class LevelDatState {
+  final Map<String, bool> flags;
+  final int gameType;
+
+  LevelDatState({required this.flags, required this.gameType});
 }
