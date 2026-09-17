@@ -261,11 +261,17 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                 if (worldPath == null) {
                     result.success(mapOf("success" to false, "error" to "worldPath ausente"))
                 } else {
-                    val flags = LevelDatEditor.readFlags(worldPath)
-                    if (flags == null) {
+                    val state = LevelDatEditor.readState(worldPath)
+                    if (state == null) {
                         result.success(mapOf("success" to false, "error" to "nao foi possivel ler o level.dat"))
                     } else {
-                        result.success(mapOf("success" to true, "flags" to flags))
+                        result.success(
+                            mapOf(
+                                "success" to true,
+                                "flags" to state.flags,
+                                "gameType" to state.gameType
+                            )
+                        )
                     }
                 }
             }
@@ -277,6 +283,16 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                     result.success(mapOf("success" to false, "error" to "argumentos ausentes"))
                 } else {
                     val ok = LevelDatEditor.writeFlags(worldPath, flagsArg)
+                    result.success(mapOf("success" to ok))
+                }
+            }
+            "writeLevelDatGameType" -> {
+                val worldPath = call.argument<String>("worldPath")
+                val gameType = call.argument<Int>("gameType")
+                if (worldPath == null || gameType == null) {
+                    result.success(mapOf("success" to false, "error" to "argumentos ausentes"))
+                } else {
+                    val ok = LevelDatEditor.writeGameType(worldPath, gameType)
                     result.success(mapOf("success" to ok))
                 }
             }
