@@ -146,7 +146,7 @@ class _LevelDatEditorScreenState extends State<LevelDatEditorScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: DropdownButtonFormField<int>(
-            initialValue: _gameType,
+            value: _gameType,
             decoration: const InputDecoration(labelText: 'Modo de jogo'),
             items: _gameModeNames.entries
                 .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
