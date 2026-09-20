@@ -5,6 +5,8 @@
 #include "leveldb/iterator.h"
 #include "leveldb/zlib_compressor.h"
 #include "subchunk_decoder.h"
+#include "generator.h"
+#include "util.h"
 
 static std::string g_lastError;
 
@@ -237,6 +239,20 @@ Java_com_example_chunktool_NativeLevelDB_nativeGetChunkTopBlock(
     }
 
     return env->NewStringUTF("");
+}
+
+// Teste da cubiomes: preve o bioma numa posicao, a partir da seed do mundo.
+// Serve pra conferir se a previsao bate com o bioma real que o jogador
+// encontrou, antes de confiar nisso pra mostrar area nao explorada.
+JNIEXPORT jstring JNICALL
+Java_com_example_chunktool_NativeLevelDB_nativeGetBiomeAt(
+    JNIEnv *env, jobject, jlong seed, jint x, jint z) {
+    Generator g;
+    setupGenerator(&g, MC_1_21, 0);
+    applySeed(&g, DIM_OVERWORLD, static_cast<uint64_t>(seed));
+    int biomeID = getBiomeAt(&g, 1, x, 64, z);
+    const char *name = biome2str(MC_1_21, biomeID);
+    return env->NewStringUTF(name != nullptr ? name : "desconhecido");
 }
 
 }
