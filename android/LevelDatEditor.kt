@@ -1,13 +1,14 @@
 package com.example.chunktool
 
-data class FieldLocation(val offset: Int, val isInt: Boolean)
+data class FieldLocation(val offset: Int, val isInt: Boolean, val isLong: Boolean = false)
 
-data class WorldEditState(val flags: Map<String, Boolean>, val gameType: Int)
+data class WorldEditState(val flags: Map<String, Boolean>, val gameType: Int, val seed: Long)
 
 object LevelDatEditor {
 
     private val TARGET_BYTE_FIELDS = setOf("cheatsEnabled", "commandsEnabled", "hasBeenLoadedInCreative")
     private val TARGET_INT_FIELDS = setOf("GameType")
+    private val TARGET_LONG_FIELDS = setOf("RandomSeed")
 
     fun readState(worldPath: String): WorldEditState? {
         val file = java.io.File(worldPath, "level.dat")
@@ -17,14 +18,15 @@ object LevelDatEditor {
 
         val flags = mutableMapOf<String, Boolean>()
         var gameType = 0
+        var seed = 0L
         for ((name, loc) in fields) {
-            if (loc.isInt) {
-                if (name == "GameType") gameType = readI32(bytes, loc.offset)
-            } else {
-                flags[name] = bytes[loc.offset].toInt() != 0
+            when {
+                loc.isLong -> if (name == "RandomSeed") seed = readI64(bytes, loc.offset)
+                loc.isInt -> if (name == "GameType") gameType = readI32(bytes, loc.offset)
+                else -> flags[name] = bytes[loc.offset].toInt() != 0
             }
         }
-        return WorldEditState(flags, gameType)
+        return WorldEditState(flags, gameType, seed)
     }
 
     fun writeFlags(worldPath: String, flags: Map<String, Boolean>): Boolean {
@@ -85,6 +87,9 @@ object LevelDatEditor {
             } else if (tagType == 3 && fieldName in TARGET_INT_FIELDS) {
                 result[fieldName] = FieldLocation(offset, isInt = true)
                 offset += 4
+            } else if (tagType == 4 && fieldName in TARGET_LONG_FIELDS) {
+                result[fieldName] = FieldLocation(offset, isInt = false, isLong = true)
+                offset += 8
             } else {
                 offset = skipValue(bytes, offset, tagType) ?: return null
             }
@@ -106,6 +111,14 @@ object LevelDatEditor {
             ((bytes[offset + 1].toInt() and 0xFF) shl 8) or
             ((bytes[offset + 2].toInt() and 0xFF) shl 16) or
             ((bytes[offset + 3].toInt() and 0xFF) shl 24)
+    }
+
+    private fun readI64(bytes: ByteArray, offset: Int): Long {
+        var value = 0L
+        for (i in 0 until 8) {
+            value = value or ((bytes[offset + i].toLong() and 0xFF) shl (8 * i))
+        }
+        return value
     }
 
     private fun writeI32(bytes: ByteArray, offset: Int, value: Int) {
