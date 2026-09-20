@@ -269,7 +269,8 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                             mapOf(
                                 "success" to true,
                                 "flags" to state.flags,
-                                "gameType" to state.gameType
+                                "gameType" to state.gameType,
+                                "seed" to state.seed
                             )
                         )
                     }
@@ -294,6 +295,25 @@ class NativeBridgePlugin : FlutterPlugin, MethodCallHandler, ActivityAware,
                 } else {
                     val ok = LevelDatEditor.writeGameType(worldPath, gameType)
                     result.success(mapOf("success" to ok))
+                }
+            }
+            "getBiomeAt" -> {
+                val seed = call.argument<Long>("seed") ?: (call.argument<Int>("seed")?.toLong())
+                val x = call.argument<Int>("x")
+                val z = call.argument<Int>("z")
+                if (seed == null || x == null || z == null) {
+                    result.success(mapOf("success" to false, "error" to "argumentos ausentes"))
+                } else {
+                    val biome = try {
+                        NativeLevelDB().nativeGetBiomeAt(seed, x, z)
+                    } catch (e: Throwable) {
+                        null
+                    }
+                    if (biome == null) {
+                        result.success(mapOf("success" to false, "error" to "falha ao calcular bioma"))
+                    } else {
+                        result.success(mapOf("success" to true, "biome" to biome))
+                    }
                 }
             }
             else -> result.notImplemented()
