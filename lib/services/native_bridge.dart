@@ -187,7 +187,8 @@ class NativeBridge {
     final flagsRaw = Map<dynamic, dynamic>.from(result['flags'] as Map);
     final flags = flagsRaw.map((k, v) => MapEntry(k as String, v as bool));
     final gameType = (result['gameType'] as num?)?.toInt() ?? 0;
-    return LevelDatState(flags: flags, gameType: gameType);
+    final seed = (result['seed'] as num?)?.toInt() ?? 0;
+    return LevelDatState(flags: flags, gameType: gameType, seed: seed);
   }
 
   /// Escreve de volta uma ou mais flags do level.dat.
@@ -211,11 +212,23 @@ class NativeBridge {
     );
     return result?['success'] as bool? ?? false;
   }
+
+  /// Teste: preve o bioma numa coordenada a partir da seed do mundo (usa
+  /// a biblioteca cubiomes). Retorna null se falhar.
+  static Future<String?> getBiomeAt(int seed, int x, int z) async {
+    final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+      'getBiomeAt',
+      {'seed': seed, 'x': x, 'z': z},
+    );
+    if (result == null || result['success'] != true) return null;
+    return result['biome'] as String?;
+  }
 }
 
 class LevelDatState {
   final Map<String, bool> flags;
   final int gameType;
+  final int seed;
 
-  LevelDatState({required this.flags, required this.gameType});
+  LevelDatState({required this.flags, required this.gameType, required this.seed});
 }
