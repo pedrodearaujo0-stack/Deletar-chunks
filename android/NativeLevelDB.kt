@@ -21,4 +21,5 @@ class NativeLevelDB {
     external fun nativeIteratorClose(iterHandle: Long)
     external fun nativeGetTopBlocks(dbHandle: Long, x: Int, z: Int, dimension: Int): String
     external fun nativeGetChunkTopBlock(dbHandle: Long, x: Int, z: Int, dimension: Int, startSubY: Int): String
+    external fun nativeGetBiomeAt(seed: Long, x: Int, z: Int): String
 }
