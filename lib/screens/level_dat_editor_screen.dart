@@ -15,7 +15,12 @@ class _LevelDatEditorScreenState extends State<LevelDatEditorScreen> {
   String? _error;
   Map<String, bool> _flags = {};
   int _gameType = 0;
+  int _seed = 0;
   bool _saving = false;
+  final _testXController = TextEditingController(text: '0');
+  final _testZController = TextEditingController(text: '0');
+  String? _biomeResult;
+  bool _testingBiome = false;
 
   static const _gameModeNames = {
     0: 'Sobrevivência',
@@ -38,6 +43,7 @@ class _LevelDatEditorScreenState extends State<LevelDatEditorScreen> {
       if (state != null) {
         _flags = state.flags;
         _gameType = state.gameType;
+        _seed = state.seed;
       } else {
         _error = 'Não foi possível ler o level.dat desse mundo.';
       }
@@ -94,6 +100,21 @@ class _LevelDatEditorScreenState extends State<LevelDatEditorScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Pronto. Entra no mundo de novo pra conferir.')),
     );
+  }
+
+  Future<void> _testBiome() async {
+    final x = int.tryParse(_testXController.text) ?? 0;
+    final z = int.tryParse(_testZController.text) ?? 0;
+    setState(() {
+      _testingBiome = true;
+      _biomeResult = null;
+    });
+    final biome = await NativeBridge.getBiomeAt(_seed, x, z);
+    if (!mounted) return;
+    setState(() {
+      _testingBiome = false;
+      _biomeResult = biome ?? 'Erro ao calcular';
+    });
   }
 
   @override
@@ -179,6 +200,52 @@ class _LevelDatEditorScreenState extends State<LevelDatEditorScreen> {
             'sozinho de novo (é um bug conhecido do Minecraft, não do app). '
             'Se acontecer, é só repetir o processo.',
             style: TextStyle(fontStyle: FontStyle.italic),
+          ),
+        ),
+        const Divider(height: 32),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Seed do mundo: $_seed'),
+              const SizedBox(height: 8),
+              const Text(
+                'Teste experimental: previsão de bioma numa coordenada '
+                '(bloco). Ainda não confirmamos se bate com o Bedrock de '
+                'verdade — é só pra conferir.',
+                style: TextStyle(fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _testXController,
+                      decoration: const InputDecoration(labelText: 'X'),
+                      keyboardType: TextInputType.numberWithOptions(signed: true),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _testZController,
+                      decoration: const InputDecoration(labelText: 'Z'),
+                      keyboardType: TextInputType.numberWithOptions(signed: true),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: _testingBiome ? null : _testBiome,
+                    child: const Text('Testar'),
+                  ),
+                ],
+              ),
+              if (_biomeResult != null) ...[
+                const SizedBox(height: 8),
+                Text('Bioma previsto: $_biomeResult'),
+              ],
+            ],
           ),
         ),
       ],
