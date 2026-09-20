@@ -87,6 +87,16 @@ jobs:
             echo "=== $f ==="
             cat "$f"
           done
+          echo "--- Clonando a cubiomes (gerador de bioma) ---"
+          git clone --depth 1 https://github.com/Cubitect/cubiomes "$CPP_DIR/cubiomes"
+          echo "--- Arquivos da cubiomes ---"
+          ls -la "$CPP_DIR/cubiomes"
+          echo "--- Conteudo de generator.h (API real, pra conferir nomes das funcoes) ---"
+          cat "$CPP_DIR/cubiomes/generator.h" 2>/dev/null || echo "generator.h nao existe"
+          echo "--- Conteudo de finders.h (caso a API seja essa, versao mais antiga) ---"
+          cat "$CPP_DIR/cubiomes/finders.h" 2>/dev/null || echo "finders.h nao existe"
+          echo "--- Conteudo de util.h (conversao de ID de bioma pra nome) ---"
+          cat "$CPP_DIR/cubiomes/util.h" 2>/dev/null || echo "util.h nao existe"
 
       - name: Adicionar dependencia do Shizuku e habilitar AIDL
         run: |
@@ -159,4 +169,3 @@ jobs:
         with:
           name: chunk-tool-apk
           path: flutter_project/build/app/outputs/flutter-apk/app-debug.apk
-          
